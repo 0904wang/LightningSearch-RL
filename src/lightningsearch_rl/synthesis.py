@@ -36,7 +36,7 @@ class DeepSeekClient:
         model: str = DEFAULT_DEEPSEEK_MODEL,
         timeout: float = 60.0,
     ) -> None:
-        self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+        self.api_key = (api_key or os.environ.get("DEEPSEEK_API_KEY") or "").strip()
         if not self.api_key:
             raise ValueError("DEEPSEEK_API_KEY is required for real synthesis")
         self.base_url = base_url.rstrip("/")
@@ -288,7 +288,7 @@ def _synthesize_one(
             row["id"] = task.request_id
             return {"row": row}
         except Exception as exc:  # pragma: no cover - exercised by real API failures
-            last_error = str(exc)
+            last_error = _redact_secret(str(exc))
             if attempt + 1 < retries:
                 time.sleep(min(2 ** attempt, 8))
     return {"error": {"id": task.request_id, "reason": last_error}}
@@ -396,3 +396,11 @@ def _supporting_fact_pairs(row: dict) -> list[tuple[str, int]]:
 
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.casefold()).strip()
+
+
+def _redact_secret(message: str) -> str:
+    redacted = re.sub(r"Bearer\s+[^'\"\s]+", "Bearer [REDACTED]", message)
+    key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if key:
+        redacted = redacted.replace(key, "[REDACTED]")
+    return redacted

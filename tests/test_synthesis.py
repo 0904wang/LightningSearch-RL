@@ -1,6 +1,7 @@
 import json
 
 from lightningsearch_rl.synthesis import (
+    DeepSeekClient,
     synthesize_file,
     validate_synthetic_file,
     validate_synthetic_row,
@@ -117,3 +118,32 @@ def test_synthesize_file_uses_client_and_writes_jsonl_without_api_key(tmp_path, 
     rows = [json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()]
     assert [row["id"] for row in rows] == ["syn-000007", "syn-000008"]
     assert "secret-value-that-must-not-leak" not in out_path.read_text(encoding="utf-8")
+
+
+def test_deepseek_client_strips_key_newlines():
+    client = DeepSeekClient(api_key="dummy-key\r\n")
+
+    assert client.api_key == "dummy-key"
+
+
+def test_synthesize_file_redacts_api_key_from_failure_summary(tmp_path):
+    class FailingClient:
+        def complete_json(self, messages, temperature, max_tokens):
+            raise RuntimeError("Invalid header value b'Bearer secret-value-that-must-not-leak\\r'")
+
+    out_path = tmp_path / "synthetic_raw.jsonl"
+
+    summary = synthesize_file(
+        out_path,
+        count=1,
+        topics=["research"],
+        client=FailingClient(),
+        concurrency=1,
+        retries=1,
+    )
+
+    assert summary["failed"] == 1
+    assert not out_path.exists()
+    reason = summary["failures"][0]["reason"]
+    assert "secret-value-that-must-not-leak" not in reason
+    assert "[REDACTED]" in reason
