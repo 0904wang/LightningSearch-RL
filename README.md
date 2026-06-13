@@ -139,3 +139,25 @@ Expected SFT artifacts:
 - `results/phase3a/sft/sft.jsonl`
 - `results/phase3a/sft/traces.jsonl`
 - `results/phase3a/sft/summary.json`
+
+## Phase 3B GRPO Export Workflow
+
+Prepare a limited HotpotQA-like file and build the shared lexical index:
+
+```bash
+python -m lightningsearch_rl.cli prepare-hotpot --raw tests/fixtures/hotpot_mixed_raw.jsonl --corpus results/phase3b/corpus.jsonl --examples results/phase3b/examples.jsonl --limit 1
+python -m lightningsearch_rl.cli build-index --corpus results/phase3b/corpus.jsonl --index results/phase3b/index.json
+```
+
+Export rollout, transition, and reward records for later GRPO training:
+
+```bash
+python -m lightningsearch_rl.cli export-grpo --examples results/phase3b/examples.jsonl --index results/phase3b/index.json --out-dir results/phase3b/grpo --top-k 2
+```
+
+Expected GRPO artifacts:
+
+- `results/phase3b/grpo/rollouts.jsonl`
+- `results/phase3b/grpo/transitions.jsonl`
+- `results/phase3b/grpo/reward_records.jsonl`
+- `results/phase3b/grpo/summary.json`
