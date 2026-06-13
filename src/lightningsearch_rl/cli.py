@@ -5,9 +5,13 @@ import json
 from pathlib import Path
 from typing import Sequence
 
+from lightningsearch_rl.adapters import convert_2wiki_file, convert_hotpot_file
+from lightningsearch_rl.corpus import load_corpus_jsonl
 from lightningsearch_rl.data import load_jsonl_examples
 from lightningsearch_rl.eval import evaluate_traces
+from lightningsearch_rl.index_store import load_lexical_index, save_lexical_index
 from lightningsearch_rl.rewards import compute_reward
+from lightningsearch_rl.retrieval_eval import evaluate_retrieval
 from lightningsearch_rl.runtime import run_rule_based_episode
 from lightningsearch_rl.transitions import build_transitions
 
@@ -19,9 +23,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     smoke.add_argument("--data", required=True)
     smoke.add_argument("--out-dir", required=True)
     smoke.add_argument("--top-k", type=int, default=2)
+    prepare_hotpot = subparsers.add_parser("prepare-hotpot")
+    prepare_hotpot.add_argument("--raw", required=True)
+    prepare_hotpot.add_argument("--corpus", required=True)
+    prepare_hotpot.add_argument("--examples", required=True)
+    prepare_2wiki = subparsers.add_parser("prepare-2wiki")
+    prepare_2wiki.add_argument("--raw", required=True)
+    prepare_2wiki.add_argument("--corpus", required=True)
+    prepare_2wiki.add_argument("--examples", required=True)
+    build_index = subparsers.add_parser("build-index")
+    build_index.add_argument("--corpus", required=True)
+    build_index.add_argument("--index", required=True)
+    eval_retrieval = subparsers.add_parser("eval-retrieval")
+    eval_retrieval.add_argument("--examples", required=True)
+    eval_retrieval.add_argument("--index", required=True)
+    eval_retrieval.add_argument("--out", required=True)
+    eval_retrieval.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
+    if args.command == "prepare-hotpot":
+        convert_hotpot_file(Path(args.raw), Path(args.corpus), Path(args.examples))
+        return 0
+    if args.command == "prepare-2wiki":
+        convert_2wiki_file(Path(args.raw), Path(args.corpus), Path(args.examples))
+        return 0
+    if args.command == "build-index":
+        save_lexical_index(Path(args.index), load_corpus_jsonl(Path(args.corpus)))
+        return 0
+    if args.command == "eval-retrieval":
+        metrics = evaluate_retrieval(
+            load_jsonl_examples(Path(args.examples)),
+            load_lexical_index(Path(args.index)),
+            args.top_k,
+        )
+        _write_json(Path(args.out), metrics)
+        return 0
     raise ValueError(f"unknown command: {args.command}")
 
 
@@ -60,6 +97,14 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _write_json(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(row, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
