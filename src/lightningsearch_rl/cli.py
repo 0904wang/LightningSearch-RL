@@ -10,6 +10,7 @@ from lightningsearch_rl.baseline import run_retrieval_baseline
 from lightningsearch_rl.corpus import load_corpus_jsonl
 from lightningsearch_rl.data import load_jsonl_examples
 from lightningsearch_rl.eval import evaluate_traces
+from lightningsearch_rl.grpo import export_grpo
 from lightningsearch_rl.index_store import load_lexical_index, save_lexical_index
 from lightningsearch_rl.rewards import compute_reward
 from lightningsearch_rl.retrieval_eval import evaluate_retrieval
@@ -54,6 +55,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     export_sft_parser.add_argument("--index", required=True)
     export_sft_parser.add_argument("--out-dir", required=True)
     export_sft_parser.add_argument("--top-k", type=int, default=5)
+    export_grpo_parser = subparsers.add_parser("export-grpo")
+    export_grpo_parser.add_argument("--examples", required=True)
+    export_grpo_parser.add_argument("--index", required=True)
+    export_grpo_parser.add_argument("--out-dir", required=True)
+    export_grpo_parser.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -95,6 +101,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "export-sft":
         export_sft(
+            Path(args.examples),
+            Path(args.index),
+            Path(args.out_dir),
+            top_k=args.top_k,
+        )
+        return 0
+    if args.command == "export-grpo":
+        export_grpo(
             Path(args.examples),
             Path(args.index),
             Path(args.out_dir),

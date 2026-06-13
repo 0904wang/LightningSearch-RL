@@ -158,3 +158,49 @@ def test_export_sft_cli_writes_conversations_traces_and_summary(tmp_path):
     assert (out_dir / "sft.jsonl").exists()
     assert (out_dir / "traces.jsonl").exists()
     assert (out_dir / "summary.json").exists()
+
+
+def test_export_grpo_cli_writes_rollouts_transitions_rewards_and_summary(tmp_path):
+    corpus = tmp_path / "corpus.jsonl"
+    examples = tmp_path / "examples.jsonl"
+    index = tmp_path / "index.json"
+    out_dir = tmp_path / "grpo"
+
+    assert (
+        main(
+            [
+                "prepare-hotpot",
+                "--raw",
+                "tests/fixtures/hotpot_mixed_raw.jsonl",
+                "--corpus",
+                str(corpus),
+                "--examples",
+                str(examples),
+                "--limit",
+                "1",
+            ]
+        )
+        == 0
+    )
+    assert main(["build-index", "--corpus", str(corpus), "--index", str(index)]) == 0
+    assert (
+        main(
+            [
+                "export-grpo",
+                "--examples",
+                str(examples),
+                "--index",
+                str(index),
+                "--out-dir",
+                str(out_dir),
+                "--top-k",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    assert (out_dir / "rollouts.jsonl").exists()
+    assert (out_dir / "transitions.jsonl").exists()
+    assert (out_dir / "reward_records.jsonl").exists()
+    assert (out_dir / "summary.json").exists()
