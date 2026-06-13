@@ -113,3 +113,48 @@ def test_retrieval_baseline_cli_writes_report_for_limited_mixed_input(tmp_path):
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert payload["example_count"] == 1
     assert payload["metrics"]["recall_at_2"] == 1.0
+
+
+def test_export_sft_cli_writes_conversations_traces_and_summary(tmp_path):
+    corpus = tmp_path / "corpus.jsonl"
+    examples = tmp_path / "examples.jsonl"
+    index = tmp_path / "index.json"
+    out_dir = tmp_path / "sft"
+
+    assert (
+        main(
+            [
+                "prepare-hotpot",
+                "--raw",
+                "tests/fixtures/hotpot_mixed_raw.jsonl",
+                "--corpus",
+                str(corpus),
+                "--examples",
+                str(examples),
+                "--limit",
+                "1",
+            ]
+        )
+        == 0
+    )
+    assert main(["build-index", "--corpus", str(corpus), "--index", str(index)]) == 0
+    assert (
+        main(
+            [
+                "export-sft",
+                "--examples",
+                str(examples),
+                "--index",
+                str(index),
+                "--out-dir",
+                str(out_dir),
+                "--top-k",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    assert (out_dir / "sft.jsonl").exists()
+    assert (out_dir / "traces.jsonl").exists()
+    assert (out_dir / "summary.json").exists()

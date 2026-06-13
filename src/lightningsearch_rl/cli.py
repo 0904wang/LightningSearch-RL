@@ -14,6 +14,7 @@ from lightningsearch_rl.index_store import load_lexical_index, save_lexical_inde
 from lightningsearch_rl.rewards import compute_reward
 from lightningsearch_rl.retrieval_eval import evaluate_retrieval
 from lightningsearch_rl.runtime import run_rule_based_episode
+from lightningsearch_rl.sft import export_sft
 from lightningsearch_rl.transitions import build_transitions
 
 
@@ -48,6 +49,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     retrieval_baseline.add_argument("--index", required=True)
     retrieval_baseline.add_argument("--report", required=True)
     retrieval_baseline.add_argument("--top-k", type=int, default=5)
+    export_sft_parser = subparsers.add_parser("export-sft")
+    export_sft_parser.add_argument("--examples", required=True)
+    export_sft_parser.add_argument("--index", required=True)
+    export_sft_parser.add_argument("--out-dir", required=True)
+    export_sft_parser.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -85,6 +91,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(args.index),
             Path(args.report),
             args.top_k,
+        )
+        return 0
+    if args.command == "export-sft":
+        export_sft(
+            Path(args.examples),
+            Path(args.index),
+            Path(args.out_dir),
+            top_k=args.top_k,
         )
         return 0
     raise ValueError(f"unknown command: {args.command}")
