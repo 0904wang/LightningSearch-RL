@@ -53,9 +53,40 @@ Out of scope for this phase:
 
 ## Next Phase Notes
 
-- Add HotpotQA / 2Wiki adapters.
-- Build shared corpus indexes.
+- Add full HotpotQA / 2Wiki adapters.
+- Build larger shared corpus indexes.
 - Add Qwen rollout policy.
 - Export SFT trajectories.
 - Add verl-compatible GRPO reward hooks.
 - Run the approved remote smoke test under `AGENTS.md`.
+
+## Phase 2A Shared Corpus Workflow
+
+Prepare a tiny HotpotQA-like fixture into shared corpus and examples files:
+
+```bash
+python -m lightningsearch_rl.cli prepare-hotpot --raw tests/fixtures/hotpot_tiny_raw.json --corpus results/phase2a/corpus.jsonl --examples results/phase2a/examples.jsonl
+```
+
+Build a persisted lexical index:
+
+```bash
+python -m lightningsearch_rl.cli build-index --corpus results/phase2a/corpus.jsonl --index results/phase2a/index.json
+```
+
+Evaluate retrieval-only metrics:
+
+```bash
+python -m lightningsearch_rl.cli eval-retrieval --examples results/phase2a/examples.jsonl --index results/phase2a/index.json --out results/phase2a/retrieval_metrics.json --top-k 2
+```
+
+Expected tiny-fixture retrieval metrics:
+
+```json
+{
+  "avg_retrieved_docs": 2.0,
+  "evidence_recall_at_2": 1.0,
+  "example_count": 1,
+  "recall_at_2": 1.0
+}
+```
