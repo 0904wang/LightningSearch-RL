@@ -252,6 +252,7 @@ def test_synthetic_cli_mock_generation_validation_and_prepare_pipeline(tmp_path)
                 str(rejects),
                 "--summary",
                 str(validation_summary),
+                "--require-chain-schema",
             ]
         )
         == 0
@@ -309,6 +310,7 @@ def test_synthetic_validated_cli_mock_pipeline_writes_target_valid_rows(tmp_path
                 "40",
                 "--summary",
                 str(summary),
+                "--require-chain-schema",
             ]
         )
         == 0

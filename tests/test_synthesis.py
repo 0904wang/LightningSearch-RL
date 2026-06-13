@@ -33,11 +33,74 @@ def _valid_row(row_id: str = "syn-000001") -> dict:
     }
 
 
+def _strict_valid_row(row_id: str = "syn-000001") -> dict:
+    row = _valid_row(row_id)
+    row["context"][1][1][0] = (
+        "Journal of Synthetic Methods is stored in the Northern Archive in Example City."
+    )
+    row["chain_schema"] = {
+        "hop1_title": "Ada Example",
+        "hop1_sentence_index": 0,
+        "intermediate_entity": "Journal of Synthetic Methods",
+        "hop2_title": "Journal of Synthetic Methods",
+        "hop2_sentence_index": 0,
+        "answer_type": "city",
+        "final_answer": "Example City",
+    }
+    return row
+
+
 def test_validate_synthetic_row_accepts_multihop_answer_in_gold_evidence():
     result = validate_synthetic_row(_valid_row())
 
     assert result.valid is True
     assert result.reason is None
+
+
+def test_validate_synthetic_row_accepts_chain_schema_when_required():
+    result = validate_synthetic_row(_strict_valid_row(), require_chain_schema=True)
+
+    assert result.valid is True
+    assert result.reason is None
+
+
+def test_validate_synthetic_row_rejects_missing_chain_schema_when_required():
+    result = validate_synthetic_row(_valid_row(), require_chain_schema=True)
+
+    assert result.valid is False
+    assert result.reason == "missing chain_schema"
+
+
+def test_validate_synthetic_row_rejects_final_answer_leak_in_hop1():
+    row = _strict_valid_row()
+    row["context"][0][1][0] = (
+        "Ada Example founded the Journal of Synthetic Methods in Example City."
+    )
+
+    result = validate_synthetic_row(row, require_chain_schema=True)
+
+    assert result.valid is False
+    assert result.reason == "final answer leaks in hop1"
+
+
+def test_validate_synthetic_row_rejects_missing_intermediate_in_hop2():
+    row = _strict_valid_row()
+    row["context"][1][1][0] = "The Northern Archive is located in Example City."
+
+    result = validate_synthetic_row(row, require_chain_schema=True)
+
+    assert result.valid is False
+    assert result.reason == "intermediate entity missing from hop2"
+
+
+def test_validate_synthetic_row_rejects_chain_schema_supporting_fact_mismatch():
+    row = _strict_valid_row()
+    row["supporting_facts"] = [["Ada Example", 0], ["Distractor", 0]]
+
+    result = validate_synthetic_row(row, require_chain_schema=True)
+
+    assert result.valid is False
+    assert result.reason == "chain_schema does not match supporting_facts"
 
 
 def test_validate_synthetic_row_rejects_missing_supporting_fact():
@@ -198,10 +261,40 @@ def test_build_synthesis_prompt_emphasizes_distinct_titles_and_verbatim_answer()
 
     assert "exactly two supporting_facts" in user_prompt
     assert "two different titles" in user_prompt
+    assert "chain_schema" in user_prompt
+    assert "intermediate_entity" in user_prompt
     assert "answer must appear verbatim" in user_prompt
     assert "answer must not appear in the question" in user_prompt
     assert "answer must not equal any context title" in user_prompt
     assert "ascii-only english" in user_prompt
+
+
+def test_validate_synthetic_file_can_require_chain_schema(tmp_path):
+    raw_path = tmp_path / "raw.jsonl"
+    valid_path = tmp_path / "valid.jsonl"
+    rejects_path = tmp_path / "rejects.jsonl"
+    raw_path.write_text(
+        "\n".join(
+            [
+                json.dumps(_strict_valid_row("syn-good"), ensure_ascii=False),
+                json.dumps(_valid_row("syn-bad"), ensure_ascii=False),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = validate_synthetic_file(
+        raw_path,
+        valid_path,
+        rejects_path,
+        require_chain_schema=True,
+    )
+
+    assert summary == {"raw_count": 2, "valid_count": 1, "reject_count": 1}
+    reject = json.loads(rejects_path.read_text(encoding="utf-8"))
+    assert reject["id"] == "syn-bad"
+    assert reject["reason"] == "missing chain_schema"
 
 
 def test_synthesize_validated_file_retries_until_target_valid(tmp_path):
@@ -253,6 +346,39 @@ def test_synthesize_validated_file_retries_until_target_valid(tmp_path):
     ]
     assert len(valid.read_text(encoding="utf-8").splitlines()) == 2
     assert len(rejects.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_synthesize_validated_file_can_require_chain_schema(tmp_path):
+    class StrictMixedClient:
+        def __init__(self):
+            self.rows = [_valid_row("ignored"), _strict_valid_row("ignored")]
+
+        def complete_json(self, messages, temperature, max_tokens):
+            return self.rows.pop(0)
+
+    raw = tmp_path / "raw.jsonl"
+    valid = tmp_path / "valid.jsonl"
+    rejects = tmp_path / "rejects.jsonl"
+
+    summary = synthesize_validated_file(
+        raw,
+        valid,
+        rejects,
+        target_valid=1,
+        topics=["research"],
+        client=StrictMixedClient(),
+        concurrency=1,
+        seed=60,
+        batch_size=1,
+        max_attempts=2,
+        require_chain_schema=True,
+    )
+
+    assert summary["requested"] == 2
+    assert summary["valid_count"] == 1
+    assert summary["reject_count"] == 1
+    reject = json.loads(rejects.read_text(encoding="utf-8"))
+    assert reject["reason"] == "missing chain_schema"
 
 
 def test_synthesize_validated_file_stops_at_max_attempts(tmp_path):

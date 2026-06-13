@@ -98,22 +98,31 @@ def build_synthesis_prompt(request_id: str, topic: str) -> list[dict[str, str]]:
                 "Create one synthetic multi-hop QA example as json. "
                 f"Use id {request_id}. Topic: {topic}. "
                 "The json object must contain: id, question, answer, context, "
-                "supporting_facts. context must be a list of [title, sentences] pairs, "
-                "where sentences is a list of short strings. supporting_facts must contain "
-                "exactly two supporting_facts as [title, sentence_index] pairs from two "
-                "different titles. The answer must appear verbatim in one supporting "
-                "evidence sentence. The answer must not appear in the question. The answer "
-                "must not equal any context title. The answer must appear in exactly one "
-                "supporting sentence: hop 1 should introduce an intermediate entity without "
-                "revealing the final answer, and hop 2 should connect that intermediate "
-                "entity to the final answer. Use ASCII-only English. Include distractor "
-                "context that is not referenced by supporting_facts."
+                "supporting_facts, and chain_schema. context must be a list of [title, "
+                "sentences] pairs, where sentences is a list of short strings. "
+                "supporting_facts must contain exactly two supporting_facts as [title, "
+                "sentence_index] pairs from two different titles. chain_schema must be an "
+                "object with hop1_title, hop1_sentence_index, intermediate_entity, "
+                "hop2_title, hop2_sentence_index, answer_type, and final_answer. "
+                "chain_schema must match supporting_facts. Use an attribute-style final "
+                "answer such as a city, year, person, organization, award, or venue; do "
+                "not use a context title as the answer. The answer must appear verbatim "
+                "in one supporting evidence sentence. The answer must not appear in the "
+                "question. The answer must not equal any context title. The answer must "
+                "appear in exactly one supporting sentence: hop 1 should mention the "
+                "intermediate_entity without revealing the final answer, and hop 2 should "
+                "mention the intermediate_entity and connect it to the final answer. Use "
+                "ASCII-only English. Include distractor context that is not referenced by "
+                "supporting_facts."
             ),
         },
     ]
 
 
-def validate_synthetic_row(row: dict) -> ValidationResult:
+def validate_synthetic_row(
+    row: dict,
+    require_chain_schema: bool = False,
+) -> ValidationResult:
     row_id = str(row.get("id") or row.get("_id") or "").strip()
     if not row_id:
         return ValidationResult(False, "missing id")
@@ -156,6 +165,16 @@ def validate_synthetic_row(row: dict) -> ValidationResult:
         evidence_sentences.append(sentence)
 
     normalized_answers = [_normalize_text(answer) for answer in answers if answer.strip()]
+    if require_chain_schema:
+        chain_result = _validate_chain_schema(
+            row,
+            sentence_by_key,
+            supporting_pairs,
+            normalized_answers,
+        )
+        if not chain_result.valid:
+            return chain_result
+
     normalized_question = _normalize_text(str(row.get("question", "")))
     normalized_titles = {_normalize_text(title) for title in context_titles}
     if any(answer in normalized_question for answer in normalized_answers):
@@ -179,12 +198,13 @@ def validate_synthetic_file(
     raw_path: Path,
     valid_path: Path,
     rejects_path: Path,
+    require_chain_schema: bool = False,
 ) -> dict[str, int]:
     raw_rows = _load_rows(raw_path)
     valid_rows: list[dict] = []
     rejected_rows: list[dict] = []
     for row in raw_rows:
-        result = validate_synthetic_row(row)
+        result = validate_synthetic_row(row, require_chain_schema=require_chain_schema)
         if result.valid:
             valid_rows.append(row)
         else:
@@ -279,6 +299,7 @@ def synthesize_validated_file(
     temperature: float = 0.8,
     max_tokens: int = 1200,
     retries: int = 3,
+    require_chain_schema: bool = False,
 ) -> dict[str, Any]:
     if target_valid < 0:
         raise ValueError("target_valid must be non-negative")
@@ -339,7 +360,10 @@ def synthesize_validated_file(
             row = result["row"]
             generated += 1
             _append_jsonl(raw_path, row)
-            validation = validate_synthetic_row(row)
+            validation = validate_synthetic_row(
+                row,
+                require_chain_schema=require_chain_schema,
+            )
             if validation.valid and valid_count < target_valid:
                 _append_jsonl(valid_path, row)
                 valid_count += 1
@@ -372,6 +396,7 @@ def synthesize_validated_file(
         "valid": str(valid_path),
         "rejects": str(rejects_path),
         "failures": api_failures,
+        "require_chain_schema": require_chain_schema,
     }
 
 
@@ -402,6 +427,15 @@ def mock_synthetic_row(request_id: str, topic: str) -> dict:
             ],
         ],
         "supporting_facts": [[first_title, 0], [second_title, 0]],
+        "chain_schema": {
+            "hop1_title": first_title,
+            "hop1_sentence_index": 0,
+            "intermediate_entity": second_title,
+            "hop2_title": second_title,
+            "hop2_sentence_index": 0,
+            "answer_type": "archive",
+            "final_answer": answer,
+        },
     }
 
 
@@ -532,6 +566,69 @@ def _supporting_fact_pairs(row: dict) -> list[tuple[str, int]]:
             title, sentence_index = item
         pairs.append((str(title), int(sentence_index)))
     return pairs
+
+
+def _validate_chain_schema(
+    row: dict,
+    sentence_by_key: dict[tuple[str, int], str],
+    supporting_pairs: list[tuple[str, int]],
+    normalized_answers: list[str],
+) -> ValidationResult:
+    chain_schema = row.get("chain_schema")
+    if not isinstance(chain_schema, dict):
+        return ValidationResult(False, "missing chain_schema")
+
+    required_fields = [
+        "hop1_title",
+        "hop1_sentence_index",
+        "intermediate_entity",
+        "hop2_title",
+        "hop2_sentence_index",
+        "answer_type",
+        "final_answer",
+    ]
+    missing_fields = [
+        field for field in required_fields if not str(chain_schema.get(field, "")).strip()
+    ]
+    if missing_fields:
+        return ValidationResult(False, f"chain_schema missing {missing_fields[0]}")
+
+    try:
+        hop1_pair = (
+            str(chain_schema["hop1_title"]),
+            int(chain_schema["hop1_sentence_index"]),
+        )
+        hop2_pair = (
+            str(chain_schema["hop2_title"]),
+            int(chain_schema["hop2_sentence_index"]),
+        )
+    except (TypeError, ValueError):
+        return ValidationResult(False, "chain_schema sentence indexes must be integers")
+
+    if [hop1_pair, hop2_pair] != supporting_pairs[:2]:
+        return ValidationResult(False, "chain_schema does not match supporting_facts")
+
+    hop1_sentence = sentence_by_key.get(hop1_pair)
+    hop2_sentence = sentence_by_key.get(hop2_pair)
+    if hop1_sentence is None or hop2_sentence is None:
+        return ValidationResult(False, "chain_schema supporting sentence missing from context")
+
+    normalized_intermediate = _normalize_text(str(chain_schema["intermediate_entity"]))
+    normalized_hop1 = _normalize_text(hop1_sentence)
+    normalized_hop2 = _normalize_text(hop2_sentence)
+    if normalized_intermediate not in normalized_hop1:
+        return ValidationResult(False, "intermediate entity missing from hop1")
+    if normalized_intermediate not in normalized_hop2:
+        return ValidationResult(False, "intermediate entity missing from hop2")
+    if any(answer in normalized_hop1 for answer in normalized_answers):
+        return ValidationResult(False, "final answer leaks in hop1")
+
+    normalized_schema_answer = _normalize_text(str(chain_schema["final_answer"]))
+    if normalized_schema_answer not in normalized_answers:
+        return ValidationResult(False, "chain_schema final_answer does not match answer")
+    if not any(answer in normalized_hop2 for answer in normalized_answers):
+        return ValidationResult(False, "final answer missing from hop2")
+    return ValidationResult(True)
 
 
 def _normalize_text(value: str) -> str:

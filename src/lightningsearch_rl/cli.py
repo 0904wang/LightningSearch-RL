@@ -87,6 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_synthetic.add_argument("--valid", required=True)
     validate_synthetic.add_argument("--rejects", required=True)
     validate_synthetic.add_argument("--summary", required=True)
+    validate_synthetic.add_argument("--require-chain-schema", action="store_true")
     synthesize_validated = subparsers.add_parser("synthesize-validated-data")
     synthesize_validated.add_argument("--raw", required=True)
     synthesize_validated.add_argument("--valid", required=True)
@@ -104,6 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     synthesize_validated.add_argument("--max-tokens", type=int, default=1200)
     synthesize_validated.add_argument("--retries", type=int, default=3)
     synthesize_validated.add_argument("--mock", action="store_true")
+    synthesize_validated.add_argument("--require-chain-schema", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -184,6 +186,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(args.raw),
             Path(args.valid),
             Path(args.rejects),
+            require_chain_schema=args.require_chain_schema,
         )
         _write_json(Path(args.summary), summary)
         return 0
@@ -208,6 +211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             retries=args.retries,
+            require_chain_schema=args.require_chain_schema,
         )
         _write_json(Path(args.summary), summary)
         return 0
