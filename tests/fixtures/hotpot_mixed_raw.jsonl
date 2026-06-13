@@ -1,0 +1,2 @@
+{"_id":"hp_mixed_1","question":"Which city is the birthplace of the author of Example Book?","answer":"Example City","context":[["Example Book",["Example Book was written by Alice Smith."]],["Alice Smith",["Alice Smith was born in Example City."]]],"supporting_facts":[{"title":"Alice Smith","sent_id":0}]}
+{"id":"hp_mixed_2","question":"Who wrote Example Book?","answers":["Alice Smith"],"context":[{"title":"Example Book","sentences":["Example Book was written by Alice Smith."]},{"title":"Noise","sentences":["Noise text."]}],"supporting_facts":[["Example Book",0]]}
