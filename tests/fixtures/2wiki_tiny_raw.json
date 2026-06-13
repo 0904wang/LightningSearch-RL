@@ -1,0 +1,13 @@
+[
+  {
+    "_id": "tw1",
+    "question": "Which city is the birthplace of the author of Example Book?",
+    "answer": "Example City",
+    "context": {
+      "Example Book": ["Example Book was written by Alice Smith."],
+      "Alice Smith": ["Alice Smith was born in Example City."],
+      "Noise": ["This passage is unrelated."]
+    },
+    "supporting_facts": [["Alice Smith", 0]]
+  }
+]

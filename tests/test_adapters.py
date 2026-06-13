@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lightningsearch_rl.adapters import convert_hotpot_file
+from lightningsearch_rl.adapters import convert_2wiki_file, convert_hotpot_file
 from lightningsearch_rl.corpus import load_corpus_jsonl
 from lightningsearch_rl.data import load_jsonl_examples
 
@@ -25,3 +25,20 @@ def test_convert_hotpot_file_writes_shared_corpus_and_examples(tmp_path):
     ]
     assert examples[0].gold_doc_ids == ["hotpot::Alice Smith::0"]
     assert examples[0].corpus_doc_ids == [p.doc_id for p in passages]
+
+
+def test_convert_2wiki_file_writes_shared_corpus_and_examples(tmp_path):
+    corpus_path = tmp_path / "corpus.jsonl"
+    examples_path = tmp_path / "examples.jsonl"
+
+    convert_2wiki_file(
+        Path("tests/fixtures/2wiki_tiny_raw.json"),
+        corpus_path,
+        examples_path,
+    )
+
+    passages = load_corpus_jsonl(corpus_path)
+    examples = load_jsonl_examples(examples_path)
+
+    assert passages[1].doc_id == "2wiki::Alice Smith::0"
+    assert examples[0].gold_doc_ids == ["2wiki::Alice Smith::0"]
