@@ -217,3 +217,18 @@ python -m lightningsearch_rl.cli export-grpo --examples results/phase4b/examples
 
 For a real API pilot, omit `--mock` and keep `DEEPSEEK_API_KEY` in the shell
 environment only.
+
+## Phase 4C Quality Controls
+
+The synthetic validator now rejects shallow or noisy rows where:
+
+- the answer appears in the question
+- the answer equals any context title
+- the answer appears in multiple supporting evidence sentences
+- non-ASCII text appears in the row
+
+The prompt mirrors these constraints by asking for a cleaner two-hop chain:
+hop 1 introduces an intermediate entity without revealing the final answer, and
+hop 2 connects that intermediate entity to the final answer. Valid rate may drop,
+but accepted rows should be better suited for tool-use and reward-shaping
+experiments.

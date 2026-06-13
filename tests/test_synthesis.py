@@ -13,7 +13,7 @@ from lightningsearch_rl.synthesis import (
 def _valid_row(row_id: str = "syn-000001") -> dict:
     return {
         "id": row_id,
-        "question": "Which city hosts the archive that stores the journal founded by Ada Example?",
+        "question": "Which city hosts the archive associated with the journal founded by Ada Example?",
         "answer": "Example City",
         "context": [
             [
@@ -58,6 +58,48 @@ def test_validate_synthetic_row_rejects_malformed_supporting_fact():
 
     assert result.valid is False
     assert "supporting" in result.reason
+
+
+def test_validate_synthetic_row_rejects_answer_in_question():
+    row = _valid_row()
+    row["question"] = "Which archive is in Example City?"
+
+    result = validate_synthetic_row(row)
+
+    assert result.valid is False
+    assert result.reason == "answer appears in question"
+
+
+def test_validate_synthetic_row_rejects_answer_equal_to_context_title():
+    row = _valid_row()
+    row["context"].append(["Example City", ["Example City is a historical city."]])
+
+    result = validate_synthetic_row(row)
+
+    assert result.valid is False
+    assert result.reason == "answer equals context title"
+
+
+def test_validate_synthetic_row_rejects_answer_in_multiple_supporting_sentences():
+    row = _valid_row()
+    row["context"][0][1][0] = (
+        "Ada Example founded the Journal of Synthetic Methods while living in Example City."
+    )
+
+    result = validate_synthetic_row(row)
+
+    assert result.valid is False
+    assert result.reason == "answer appears in multiple supporting sentences"
+
+
+def test_validate_synthetic_row_rejects_non_ascii_text():
+    row = _valid_row()
+    row["answer"] = "Chlo谷 Zhao"
+
+    result = validate_synthetic_row(row)
+
+    assert result.valid is False
+    assert result.reason == "non-ascii text detected"
 
 
 def test_validate_synthetic_file_splits_valid_and_rejected_rows(tmp_path):
@@ -157,6 +199,9 @@ def test_build_synthesis_prompt_emphasizes_distinct_titles_and_verbatim_answer()
     assert "exactly two supporting_facts" in user_prompt
     assert "two different titles" in user_prompt
     assert "answer must appear verbatim" in user_prompt
+    assert "answer must not appear in the question" in user_prompt
+    assert "answer must not equal any context title" in user_prompt
+    assert "ascii-only english" in user_prompt
 
 
 def test_synthesize_validated_file_retries_until_target_valid(tmp_path):

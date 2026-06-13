@@ -102,8 +102,12 @@ def build_synthesis_prompt(request_id: str, topic: str) -> list[dict[str, str]]:
                 "where sentences is a list of short strings. supporting_facts must contain "
                 "exactly two supporting_facts as [title, sentence_index] pairs from two "
                 "different titles. The answer must appear verbatim in one supporting "
-                "evidence sentence. Include distractor context that is not referenced by "
-                "supporting_facts."
+                "evidence sentence. The answer must not appear in the question. The answer "
+                "must not equal any context title. The answer must appear in exactly one "
+                "supporting sentence: hop 1 should introduce an intermediate entity without "
+                "revealing the final answer, and hop 2 should connect that intermediate "
+                "entity to the final answer. Use ASCII-only English. Include distractor "
+                "context that is not referenced by supporting_facts."
             ),
         },
     ]
@@ -115,6 +119,8 @@ def validate_synthetic_row(row: dict) -> ValidationResult:
         return ValidationResult(False, "missing id")
     if not str(row.get("question", "")).strip():
         return ValidationResult(False, "missing question")
+    if not _is_ascii_row(row):
+        return ValidationResult(False, "non-ascii text detected")
     try:
         answers = _answers(row)
     except ValueError as exc:
@@ -128,6 +134,7 @@ def validate_synthetic_row(row: dict) -> ValidationResult:
         return ValidationResult(False, str(exc))
     if not sentence_by_key:
         return ValidationResult(False, "context has no sentences")
+    context_titles = [title for title, _ in _context_items(row.get("context", []))]
 
     try:
         supporting_pairs = _supporting_fact_pairs(row)
@@ -149,6 +156,19 @@ def validate_synthetic_row(row: dict) -> ValidationResult:
         evidence_sentences.append(sentence)
 
     normalized_answers = [_normalize_text(answer) for answer in answers if answer.strip()]
+    normalized_question = _normalize_text(str(row.get("question", "")))
+    normalized_titles = {_normalize_text(title) for title in context_titles}
+    if any(answer in normalized_question for answer in normalized_answers):
+        return ValidationResult(False, "answer appears in question")
+    if any(answer == title for answer in normalized_answers for title in normalized_titles):
+        return ValidationResult(False, "answer equals context title")
+    answer_sentence_hits = 0
+    for sentence in evidence_sentences:
+        normalized_sentence = _normalize_text(sentence)
+        if any(answer in normalized_sentence for answer in normalized_answers):
+            answer_sentence_hits += 1
+    if answer_sentence_hits > 1:
+        return ValidationResult(False, "answer appears in multiple supporting sentences")
     normalized_evidence = _normalize_text(" ".join(evidence_sentences))
     if not any(answer in normalized_evidence for answer in normalized_answers):
         return ValidationResult(False, "answer not found in supporting evidence")
@@ -362,16 +382,19 @@ def mock_synthetic_row(request_id: str, topic: str) -> dict:
     second_title = f"{topic_slug} Institute"
     return {
         "id": request_id,
-        "question": f"Which archive stores the institute that hosted {first_title}?",
+        "question": f"Which archive stores the institute associated with {first_title}?",
         "answer": answer,
         "context": [
             [
                 first_title,
-                [f"{first_title} was hosted by {second_title} during the pilot study."],
+                [f"{first_title} collaborated with {second_title} during the pilot study."],
             ],
             [
                 second_title,
-                [f"{second_title} keeps its experiment notes in {answer}."],
+                [
+                    f"{second_title} keeps its experiment notes in {answer}.",
+                    f"{second_title} also maintains an unrelated reading room.",
+                ],
             ],
             [
                 f"{topic_slug} Distractor",
@@ -513,6 +536,30 @@ def _supporting_fact_pairs(row: dict) -> list[tuple[str, int]]:
 
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.casefold()).strip()
+
+
+def _is_ascii_row(row: dict) -> bool:
+    return _is_ascii_value(
+        {
+            "id": row.get("id") or row.get("_id") or "",
+            "question": row.get("question", ""),
+            "answers": row.get("answers", row.get("answer", row.get("final_answer", ""))),
+            "context": row.get("context", []),
+            "supporting_facts": row.get("supporting_facts", []),
+        }
+    )
+
+
+def _is_ascii_value(value) -> bool:
+    if isinstance(value, str):
+        return value.isascii()
+    if isinstance(value, dict):
+        return all(_is_ascii_value(key) and _is_ascii_value(item) for key, item in value.items())
+    if isinstance(value, list):
+        return all(_is_ascii_value(item) for item in value)
+    if isinstance(value, tuple):
+        return all(_is_ascii_value(item) for item in value)
+    return True
 
 
 def _redact_secret(message: str) -> str:
