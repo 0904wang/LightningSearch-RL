@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from lightningsearch_rl.data import Passage, QAExample
+from lightningsearch_rl.query import build_search_query
 from lightningsearch_rl.retrieval import LexicalRetriever
 
 
@@ -32,7 +33,7 @@ class EpisodeTrace:
 
 def run_rule_based_episode(example: QAExample, top_k: int = 5) -> EpisodeTrace:
     retriever = LexicalRetriever(example.corpus)
-    query = _build_search_query(example.question)
+    query = build_search_query(example.question)
     observation = retriever.search(query, top_k=top_k)
     final_answer = _answer_from_observation(example, observation)
     steps = [
@@ -69,8 +70,3 @@ def _answer_from_observation(example: QAExample, observation: list[Passage]) -> 
             return answer
     return ""
 
-
-def _build_search_query(question: str) -> str:
-    if "birthplace" in question.lower():
-        return f"{question} born city"
-    return question
