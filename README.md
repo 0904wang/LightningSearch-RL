@@ -161,3 +161,38 @@ Expected GRPO artifacts:
 - `results/phase3b/grpo/transitions.jsonl`
 - `results/phase3b/grpo/reward_records.jsonl`
 - `results/phase3b/grpo/summary.json`
+
+## Phase 4A Synthetic Data Workflow
+
+Generate HotpotQA-like synthetic raw rows without API usage first:
+
+```bash
+python -m lightningsearch_rl.cli synthesize-data --mock --out results/phase4a/synthetic_raw.jsonl --count 10 --topics awards,archives,research --concurrency 50 --seed 0 --summary results/phase4a/synthesis_summary.json
+```
+
+Validate rows before converting them into corpus/examples:
+
+```bash
+python -m lightningsearch_rl.cli validate-synthetic --raw results/phase4a/synthetic_raw.jsonl --valid results/phase4a/synthetic_valid.jsonl --rejects results/phase4a/synthetic_rejects.jsonl --summary results/phase4a/validation_summary.json
+python -m lightningsearch_rl.cli prepare-hotpot --raw results/phase4a/synthetic_valid.jsonl --corpus results/phase4a/corpus.jsonl --examples results/phase4a/examples.jsonl
+python -m lightningsearch_rl.cli build-index --corpus results/phase4a/corpus.jsonl --index results/phase4a/index.json
+python -m lightningsearch_rl.cli export-grpo --examples results/phase4a/examples.jsonl --index results/phase4a/index.json --out-dir results/phase4a/grpo --top-k 2
+```
+
+For real DeepSeek synthesis, set `DEEPSEEK_API_KEY` in the shell environment and
+omit `--mock`. Do not put the key in command arguments, config files, or logs.
+The default endpoint is `https://api.deepseek.com`, and the default model is
+`deepseek-chat`; both are configurable:
+
+```bash
+python -m lightningsearch_rl.cli synthesize-data --out results/phase4a/synthetic_raw.jsonl --count 100 --topics awards,archives,research --concurrency 50 --seed 0 --summary results/phase4a/synthesis_summary.json --model deepseek-chat --base-url https://api.deepseek.com
+```
+
+Expected Phase 4A artifacts:
+
+- `results/phase4a/synthetic_raw.jsonl`
+- `results/phase4a/synthesis_summary.json`
+- `results/phase4a/synthetic_valid.jsonl`
+- `results/phase4a/synthetic_rejects.jsonl`
+- `results/phase4a/validation_summary.json`
+- downstream corpus, index, and GRPO export files

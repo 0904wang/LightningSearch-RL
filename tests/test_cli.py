@@ -204,3 +204,73 @@ def test_export_grpo_cli_writes_rollouts_transitions_rewards_and_summary(tmp_pat
     assert (out_dir / "transitions.jsonl").exists()
     assert (out_dir / "reward_records.jsonl").exists()
     assert (out_dir / "summary.json").exists()
+
+
+def test_synthetic_cli_mock_generation_validation_and_prepare_pipeline(tmp_path):
+    raw = tmp_path / "synthetic_raw.jsonl"
+    synthesis_summary = tmp_path / "synthesis_summary.json"
+    valid = tmp_path / "synthetic_valid.jsonl"
+    rejects = tmp_path / "synthetic_rejects.jsonl"
+    validation_summary = tmp_path / "validation_summary.json"
+    corpus = tmp_path / "corpus.jsonl"
+    examples = tmp_path / "examples.jsonl"
+
+    assert (
+        main(
+            [
+                "synthesize-data",
+                "--mock",
+                "--out",
+                str(raw),
+                "--count",
+                "2",
+                "--topics",
+                "awards,archives",
+                "--concurrency",
+                "50",
+                "--seed",
+                "3",
+                "--summary",
+                str(synthesis_summary),
+            ]
+        )
+        == 0
+    )
+    synthesis_payload = json.loads(synthesis_summary.read_text(encoding="utf-8"))
+    assert synthesis_payload["written"] == 2
+    assert len(raw.read_text(encoding="utf-8").splitlines()) == 2
+
+    assert (
+        main(
+            [
+                "validate-synthetic",
+                "--raw",
+                str(raw),
+                "--valid",
+                str(valid),
+                "--rejects",
+                str(rejects),
+                "--summary",
+                str(validation_summary),
+            ]
+        )
+        == 0
+    )
+    validation_payload = json.loads(validation_summary.read_text(encoding="utf-8"))
+    assert validation_payload == {"raw_count": 2, "valid_count": 2, "reject_count": 0}
+
+    assert (
+        main(
+            [
+                "prepare-hotpot",
+                "--raw",
+                str(valid),
+                "--corpus",
+                str(corpus),
+                "--examples",
+                str(examples),
+            ]
+        )
+        == 0
+    )
+    assert len(examples.read_text(encoding="utf-8").splitlines()) == 2

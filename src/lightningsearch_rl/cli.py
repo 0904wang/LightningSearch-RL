@@ -16,6 +16,14 @@ from lightningsearch_rl.rewards import compute_reward
 from lightningsearch_rl.retrieval_eval import evaluate_retrieval
 from lightningsearch_rl.runtime import run_rule_based_episode
 from lightningsearch_rl.sft import export_sft
+from lightningsearch_rl.synthesis import (
+    DEFAULT_DEEPSEEK_BASE_URL,
+    DEFAULT_DEEPSEEK_MODEL,
+    DeepSeekClient,
+    mock_synthetic_row,
+    synthesize_file,
+    validate_synthetic_file,
+)
 from lightningsearch_rl.transitions import build_transitions
 
 
@@ -60,6 +68,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     export_grpo_parser.add_argument("--index", required=True)
     export_grpo_parser.add_argument("--out-dir", required=True)
     export_grpo_parser.add_argument("--top-k", type=int, default=5)
+    synthesize_data = subparsers.add_parser("synthesize-data")
+    synthesize_data.add_argument("--out", required=True)
+    synthesize_data.add_argument("--count", type=int, required=True)
+    synthesize_data.add_argument("--topics", required=True)
+    synthesize_data.add_argument("--concurrency", type=int, default=50)
+    synthesize_data.add_argument("--seed", type=int, default=0)
+    synthesize_data.add_argument("--summary", required=True)
+    synthesize_data.add_argument("--model", default=DEFAULT_DEEPSEEK_MODEL)
+    synthesize_data.add_argument("--base-url", default=DEFAULT_DEEPSEEK_BASE_URL)
+    synthesize_data.add_argument("--temperature", type=float, default=0.8)
+    synthesize_data.add_argument("--max-tokens", type=int, default=1200)
+    synthesize_data.add_argument("--retries", type=int, default=3)
+    synthesize_data.add_argument("--mock", action="store_true")
+    validate_synthetic = subparsers.add_parser("validate-synthetic")
+    validate_synthetic.add_argument("--raw", required=True)
+    validate_synthetic.add_argument("--valid", required=True)
+    validate_synthetic.add_argument("--rejects", required=True)
+    validate_synthetic.add_argument("--summary", required=True)
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -115,6 +141,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             top_k=args.top_k,
         )
         return 0
+    if args.command == "synthesize-data":
+        topics = _parse_topics(args.topics)
+        client = (
+            _MockSynthesisClient()
+            if args.mock
+            else DeepSeekClient(base_url=args.base_url, model=args.model)
+        )
+        summary = synthesize_file(
+            Path(args.out),
+            count=args.count,
+            topics=topics,
+            client=client,
+            concurrency=args.concurrency,
+            seed=args.seed,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            retries=args.retries,
+        )
+        _write_json(Path(args.summary), summary)
+        return 0
+    if args.command == "validate-synthetic":
+        summary = validate_synthetic_file(
+            Path(args.raw),
+            Path(args.valid),
+            Path(args.rejects),
+        )
+        _write_json(Path(args.summary), summary)
+        return 0
     raise ValueError(f"unknown command: {args.command}")
 
 
@@ -161,6 +215,27 @@ def _write_json(path: Path, row: dict) -> None:
         json.dumps(row, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def _parse_topics(value: str) -> list[str]:
+    topics = [topic.strip() for topic in value.split(",") if topic.strip()]
+    if not topics:
+        raise ValueError("--topics must contain at least one non-empty topic")
+    return topics
+
+
+class _MockSynthesisClient:
+    def complete_json(self, messages, temperature, max_tokens):
+        content = messages[-1]["content"]
+        request_id = _extract_prompt_field(content, "Use id ", ".")
+        topic = _extract_prompt_field(content, "Topic: ", ". The json object")
+        return mock_synthetic_row(request_id, topic)
+
+
+def _extract_prompt_field(content: str, prefix: str, suffix: str) -> str:
+    start = content.index(prefix) + len(prefix)
+    end = content.index(suffix, start)
+    return content[start:end].strip()
 
 
 if __name__ == "__main__":
