@@ -90,3 +90,31 @@ Expected tiny-fixture retrieval metrics:
   "recall_at_2": 1.0
 }
 ```
+
+## Phase 2B Retrieval Baseline Workflow
+
+Prepare a mixed-format HotpotQA-like local file with a small limit:
+
+```bash
+python -m lightningsearch_rl.cli prepare-hotpot --raw tests/fixtures/hotpot_mixed_raw.jsonl --corpus results/phase2b/corpus.jsonl --examples results/phase2b/examples.jsonl --limit 1
+```
+
+Build the index:
+
+```bash
+python -m lightningsearch_rl.cli build-index --corpus results/phase2b/corpus.jsonl --index results/phase2b/index.json
+```
+
+Write a retrieval baseline report:
+
+```bash
+python -m lightningsearch_rl.cli retrieval-baseline --dataset hotpot --examples results/phase2b/examples.jsonl --index results/phase2b/index.json --report results/phase2b/baseline_report.json --top-k 2
+```
+
+Expected report fields:
+
+- `dataset`
+- `top_k`
+- `example_count`
+- `metrics`
+- `artifacts`
