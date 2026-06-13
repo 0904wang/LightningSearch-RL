@@ -22,6 +22,7 @@ from lightningsearch_rl.synthesis import (
     DeepSeekClient,
     mock_synthetic_row,
     synthesize_file,
+    synthesize_validated_file,
     validate_synthetic_file,
 )
 from lightningsearch_rl.transitions import build_transitions
@@ -86,6 +87,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate_synthetic.add_argument("--valid", required=True)
     validate_synthetic.add_argument("--rejects", required=True)
     validate_synthetic.add_argument("--summary", required=True)
+    synthesize_validated = subparsers.add_parser("synthesize-validated-data")
+    synthesize_validated.add_argument("--raw", required=True)
+    synthesize_validated.add_argument("--valid", required=True)
+    synthesize_validated.add_argument("--rejects", required=True)
+    synthesize_validated.add_argument("--target-valid", type=int, required=True)
+    synthesize_validated.add_argument("--topics", required=True)
+    synthesize_validated.add_argument("--concurrency", type=int, default=50)
+    synthesize_validated.add_argument("--batch-size", type=int, default=None)
+    synthesize_validated.add_argument("--max-attempts", type=int, default=None)
+    synthesize_validated.add_argument("--seed", type=int, default=0)
+    synthesize_validated.add_argument("--summary", required=True)
+    synthesize_validated.add_argument("--model", default=DEFAULT_DEEPSEEK_MODEL)
+    synthesize_validated.add_argument("--base-url", default=DEFAULT_DEEPSEEK_BASE_URL)
+    synthesize_validated.add_argument("--temperature", type=float, default=0.8)
+    synthesize_validated.add_argument("--max-tokens", type=int, default=1200)
+    synthesize_validated.add_argument("--retries", type=int, default=3)
+    synthesize_validated.add_argument("--mock", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -166,6 +184,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(args.raw),
             Path(args.valid),
             Path(args.rejects),
+        )
+        _write_json(Path(args.summary), summary)
+        return 0
+    if args.command == "synthesize-validated-data":
+        topics = _parse_topics(args.topics)
+        client = (
+            _MockSynthesisClient()
+            if args.mock
+            else DeepSeekClient(base_url=args.base_url, model=args.model)
+        )
+        summary = synthesize_validated_file(
+            Path(args.raw),
+            Path(args.valid),
+            Path(args.rejects),
+            target_valid=args.target_valid,
+            topics=topics,
+            client=client,
+            concurrency=args.concurrency,
+            seed=args.seed,
+            batch_size=args.batch_size,
+            max_attempts=args.max_attempts,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            retries=args.retries,
         )
         _write_json(Path(args.summary), summary)
         return 0

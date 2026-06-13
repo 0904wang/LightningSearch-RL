@@ -99,10 +99,11 @@ def build_synthesis_prompt(request_id: str, topic: str) -> list[dict[str, str]]:
                 f"Use id {request_id}. Topic: {topic}. "
                 "The json object must contain: id, question, answer, context, "
                 "supporting_facts. context must be a list of [title, sentences] pairs, "
-                "where sentences is a list of short strings. supporting_facts must be a "
-                "list of [title, sentence_index] pairs. Include at least two evidence "
-                "titles, include distractor context, and make the final answer appear "
-                "verbatim in one supporting evidence sentence."
+                "where sentences is a list of short strings. supporting_facts must contain "
+                "exactly two supporting_facts as [title, sentence_index] pairs from two "
+                "different titles. The answer must appear verbatim in one supporting "
+                "evidence sentence. Include distractor context that is not referenced by "
+                "supporting_facts."
             ),
         },
     ]
@@ -244,6 +245,116 @@ def synthesize_file(
     }
 
 
+def synthesize_validated_file(
+    raw_path: Path,
+    valid_path: Path,
+    rejects_path: Path,
+    target_valid: int,
+    topics: list[str],
+    client,
+    concurrency: int = 50,
+    seed: int = 0,
+    batch_size: int | None = None,
+    max_attempts: int | None = None,
+    temperature: float = 0.8,
+    max_tokens: int = 1200,
+    retries: int = 3,
+) -> dict[str, Any]:
+    if target_valid < 0:
+        raise ValueError("target_valid must be non-negative")
+    if concurrency < 1:
+        raise ValueError("concurrency must be at least 1")
+    if retries < 1:
+        raise ValueError("retries must be at least 1")
+    if not topics:
+        raise ValueError("at least one topic is required")
+    if batch_size is None:
+        batch_size = concurrency
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
+    if max_attempts is None:
+        max_attempts = target_valid * 3
+    if max_attempts < 0:
+        raise ValueError("max_attempts must be non-negative")
+
+    for path in [raw_path, valid_path, rejects_path]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+
+    requested = 0
+    generated = 0
+    valid_count = 0
+    reject_count = 0
+    api_failures: list[dict[str, str]] = []
+
+    while valid_count < target_valid and requested < max_attempts:
+        remaining_attempts = max_attempts - requested
+        remaining_valid = target_valid - valid_count
+        current_batch_size = min(batch_size, remaining_attempts, max(remaining_valid, 1))
+        tasks = [
+            _SynthesisTask(
+                request_id=f"syn-{seed + requested + index:06d}",
+                topic=topics[(requested + index) % len(topics)],
+            )
+            for index in range(current_batch_size)
+        ]
+        requested += current_batch_size
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            results = list(
+                executor.map(
+                    lambda task: _synthesize_one(
+                        task,
+                        client,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        retries=retries,
+                    ),
+                    tasks,
+                )
+            )
+        for result in results:
+            if "error" in result:
+                api_failures.append(result["error"])
+                continue
+            row = result["row"]
+            generated += 1
+            _append_jsonl(raw_path, row)
+            validation = validate_synthetic_row(row)
+            if validation.valid and valid_count < target_valid:
+                _append_jsonl(valid_path, row)
+                valid_count += 1
+            else:
+                reject_count += 1
+                _append_jsonl(
+                    rejects_path,
+                    {
+                        "id": str(row.get("id") or row.get("_id") or ""),
+                        "reason": validation.reason or "valid row exceeded target_valid",
+                        "row": row,
+                    },
+                )
+
+    stopped_reason = (
+        "target_valid_reached" if valid_count >= target_valid else "max_attempts_reached"
+    )
+    return {
+        "target_valid": target_valid,
+        "requested": requested,
+        "generated": generated,
+        "valid_count": valid_count,
+        "reject_count": reject_count,
+        "api_failed": len(api_failures),
+        "concurrency": concurrency,
+        "batch_size": batch_size,
+        "max_attempts": max_attempts,
+        "stopped_reason": stopped_reason,
+        "raw": str(raw_path),
+        "valid": str(valid_path),
+        "rejects": str(rejects_path),
+        "failures": api_failures,
+    }
+
+
 def mock_synthetic_row(request_id: str, topic: str) -> dict:
     topic_slug = re.sub(r"[^A-Za-z0-9]+", " ", topic).strip() or "General Topic"
     answer = f"{topic_slug} Archive"
@@ -315,6 +426,12 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _append_jsonl(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def _existing_ids(path: Path) -> set[str]:

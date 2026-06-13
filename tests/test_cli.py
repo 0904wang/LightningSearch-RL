@@ -274,3 +274,62 @@ def test_synthetic_cli_mock_generation_validation_and_prepare_pipeline(tmp_path)
         == 0
     )
     assert len(examples.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_synthetic_validated_cli_mock_pipeline_writes_target_valid_rows(tmp_path):
+    raw = tmp_path / "synthetic_raw.jsonl"
+    valid = tmp_path / "synthetic_valid.jsonl"
+    rejects = tmp_path / "synthetic_rejects.jsonl"
+    summary = tmp_path / "validated_summary.json"
+    corpus = tmp_path / "corpus.jsonl"
+    examples = tmp_path / "examples.jsonl"
+
+    assert (
+        main(
+            [
+                "synthesize-validated-data",
+                "--mock",
+                "--raw",
+                str(raw),
+                "--valid",
+                str(valid),
+                "--rejects",
+                str(rejects),
+                "--target-valid",
+                "2",
+                "--topics",
+                "awards,archives",
+                "--concurrency",
+                "50",
+                "--batch-size",
+                "2",
+                "--max-attempts",
+                "2",
+                "--seed",
+                "40",
+                "--summary",
+                str(summary),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(summary.read_text(encoding="utf-8"))
+    assert payload["valid_count"] == 2
+    assert payload["reject_count"] == 0
+    assert payload["stopped_reason"] == "target_valid_reached"
+
+    assert (
+        main(
+            [
+                "prepare-hotpot",
+                "--raw",
+                str(valid),
+                "--corpus",
+                str(corpus),
+                "--examples",
+                str(examples),
+            ]
+        )
+        == 0
+    )
+    assert len(examples.read_text(encoding="utf-8").splitlines()) == 2

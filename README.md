@@ -196,3 +196,24 @@ Expected Phase 4A artifacts:
 - `results/phase4a/synthetic_rejects.jsonl`
 - `results/phase4a/validation_summary.json`
 - downstream corpus, index, and GRPO export files
+
+## Phase 4B Validated Synthetic Data Workflow
+
+Generate until a target number of valid rows is reached. This is the preferred
+path after the initial real pilot because rejected rows are preserved while the
+pipeline keeps requesting replacements:
+
+```bash
+python -m lightningsearch_rl.cli synthesize-validated-data --mock --raw results/phase4b/synthetic_raw.jsonl --valid results/phase4b/synthetic_valid.jsonl --rejects results/phase4b/synthetic_rejects.jsonl --target-valid 10 --topics awards,archives,research --concurrency 50 --batch-size 50 --max-attempts 20 --seed 0 --summary results/phase4b/validated_summary.json
+```
+
+Then reuse the existing conversion and export path:
+
+```bash
+python -m lightningsearch_rl.cli prepare-hotpot --raw results/phase4b/synthetic_valid.jsonl --corpus results/phase4b/corpus.jsonl --examples results/phase4b/examples.jsonl
+python -m lightningsearch_rl.cli build-index --corpus results/phase4b/corpus.jsonl --index results/phase4b/index.json
+python -m lightningsearch_rl.cli export-grpo --examples results/phase4b/examples.jsonl --index results/phase4b/index.json --out-dir results/phase4b/grpo --top-k 2
+```
+
+For a real API pilot, omit `--mock` and keep `DEEPSEEK_API_KEY` in the shell
+environment only.

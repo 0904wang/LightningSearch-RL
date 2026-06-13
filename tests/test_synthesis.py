@@ -2,7 +2,9 @@ import json
 
 from lightningsearch_rl.synthesis import (
     DeepSeekClient,
+    build_synthesis_prompt,
     synthesize_file,
+    synthesize_validated_file,
     validate_synthetic_file,
     validate_synthetic_row,
 )
@@ -147,3 +149,89 @@ def test_synthesize_file_redacts_api_key_from_failure_summary(tmp_path):
     reason = summary["failures"][0]["reason"]
     assert "secret-value-that-must-not-leak" not in reason
     assert "[REDACTED]" in reason
+
+
+def test_build_synthesis_prompt_emphasizes_distinct_titles_and_verbatim_answer():
+    user_prompt = build_synthesis_prompt("syn-000001", "research")[-1]["content"].lower()
+
+    assert "exactly two supporting_facts" in user_prompt
+    assert "two different titles" in user_prompt
+    assert "answer must appear verbatim" in user_prompt
+
+
+def test_synthesize_validated_file_retries_until_target_valid(tmp_path):
+    invalid_same_title = _valid_row("ignored")
+    invalid_same_title["supporting_facts"] = [["Ada Example", 0], ["Ada Example", 0]]
+    invalid_missing_answer = _valid_row("ignored")
+    invalid_missing_answer["answer"] = "Missing Answer"
+
+    class MixedClient:
+        def __init__(self):
+            self.rows = [
+                invalid_same_title,
+                _valid_row("ignored"),
+                invalid_missing_answer,
+                _valid_row("ignored"),
+            ]
+
+        def complete_json(self, messages, temperature, max_tokens):
+            return self.rows.pop(0)
+
+    raw = tmp_path / "raw.jsonl"
+    valid = tmp_path / "valid.jsonl"
+    rejects = tmp_path / "rejects.jsonl"
+
+    summary = synthesize_validated_file(
+        raw,
+        valid,
+        rejects,
+        target_valid=2,
+        topics=["research"],
+        client=MixedClient(),
+        concurrency=1,
+        seed=20,
+        batch_size=1,
+        max_attempts=5,
+    )
+
+    assert summary["requested"] == 4
+    assert summary["generated"] == 4
+    assert summary["valid_count"] == 2
+    assert summary["reject_count"] == 2
+    assert summary["api_failed"] == 0
+    assert summary["stopped_reason"] == "target_valid_reached"
+    assert [json.loads(line)["id"] for line in raw.read_text(encoding="utf-8").splitlines()] == [
+        "syn-000020",
+        "syn-000021",
+        "syn-000022",
+        "syn-000023",
+    ]
+    assert len(valid.read_text(encoding="utf-8").splitlines()) == 2
+    assert len(rejects.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_synthesize_validated_file_stops_at_max_attempts(tmp_path):
+    invalid = _valid_row("ignored")
+    invalid["answer"] = "Missing Answer"
+
+    class InvalidClient:
+        def complete_json(self, messages, temperature, max_tokens):
+            return invalid
+
+    summary = synthesize_validated_file(
+        tmp_path / "raw.jsonl",
+        tmp_path / "valid.jsonl",
+        tmp_path / "rejects.jsonl",
+        target_valid=2,
+        topics=["research"],
+        client=InvalidClient(),
+        concurrency=1,
+        seed=30,
+        batch_size=2,
+        max_attempts=3,
+    )
+
+    assert summary["requested"] == 3
+    assert summary["valid_count"] == 0
+    assert summary["reject_count"] == 3
+    assert summary["stopped_reason"] == "max_attempts_reached"
