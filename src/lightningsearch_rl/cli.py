@@ -106,6 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     synthesize_validated.add_argument("--retries", type=int, default=3)
     synthesize_validated.add_argument("--mock", action="store_true")
     synthesize_validated.add_argument("--require-chain-schema", action="store_true")
+    synthesize_validated.add_argument("--repair-chain-schema", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
@@ -212,6 +213,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_tokens=args.max_tokens,
             retries=args.retries,
             require_chain_schema=args.require_chain_schema,
+            repair_chain_schema=args.repair_chain_schema,
         )
         _write_json(Path(args.summary), summary)
         return 0

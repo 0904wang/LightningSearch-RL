@@ -3,6 +3,7 @@ import json
 from lightningsearch_rl.synthesis import (
     DeepSeekClient,
     build_synthesis_prompt,
+    repair_chain_schema,
     synthesize_file,
     synthesize_validated_file,
     validate_synthetic_file,
@@ -101,6 +102,35 @@ def test_validate_synthetic_row_rejects_chain_schema_supporting_fact_mismatch():
 
     assert result.valid is False
     assert result.reason == "chain_schema does not match supporting_facts"
+
+
+def test_repair_chain_schema_normalizes_intermediate_to_hop2_title():
+    row = _strict_valid_row()
+    row["chain_schema"]["intermediate_entity"] = "The journal"
+    assert validate_synthetic_row(row, require_chain_schema=True).reason == (
+        "intermediate entity missing from hop2"
+    )
+
+    repaired, did_repair, original_reason = repair_chain_schema(row)
+
+    assert did_repair is True
+    assert original_reason == "intermediate entity missing from hop2"
+    assert row["chain_schema"]["intermediate_entity"] == "The journal"
+    assert repaired["chain_schema"]["intermediate_entity"] == "Journal of Synthetic Methods"
+    assert validate_synthetic_row(repaired, require_chain_schema=True).valid is True
+
+
+def test_repair_chain_schema_does_not_repair_unrecoverable_answer_leak():
+    row = _strict_valid_row()
+    row["context"][0][1][0] = (
+        "Ada Example founded the Journal of Synthetic Methods in Example City."
+    )
+
+    repaired, did_repair, original_reason = repair_chain_schema(row)
+
+    assert did_repair is False
+    assert original_reason == "final answer leaks in hop1"
+    assert repaired == row
 
 
 def test_validate_synthetic_row_rejects_missing_supporting_fact():
@@ -379,6 +409,43 @@ def test_synthesize_validated_file_can_require_chain_schema(tmp_path):
     assert summary["reject_count"] == 1
     reject = json.loads(rejects.read_text(encoding="utf-8"))
     assert reject["reason"] == "missing chain_schema"
+
+
+def test_synthesize_validated_file_can_repair_chain_schema_before_rejecting(tmp_path):
+    repairable = _strict_valid_row("ignored")
+    repairable["chain_schema"]["intermediate_entity"] = "The journal"
+
+    class RepairableClient:
+        def complete_json(self, messages, temperature, max_tokens):
+            return repairable
+
+    raw = tmp_path / "raw.jsonl"
+    valid = tmp_path / "valid.jsonl"
+    rejects = tmp_path / "rejects.jsonl"
+
+    summary = synthesize_validated_file(
+        raw,
+        valid,
+        rejects,
+        target_valid=1,
+        topics=["research"],
+        client=RepairableClient(),
+        concurrency=1,
+        seed=70,
+        batch_size=1,
+        max_attempts=1,
+        require_chain_schema=True,
+        repair_chain_schema=True,
+    )
+
+    assert summary["valid_count"] == 1
+    assert summary["reject_count"] == 0
+    assert summary["repair_attempt_count"] == 1
+    assert summary["repair_success_count"] == 1
+    raw_row = json.loads(raw.read_text(encoding="utf-8"))
+    valid_row = json.loads(valid.read_text(encoding="utf-8"))
+    assert raw_row["chain_schema"]["intermediate_entity"] == "The journal"
+    assert valid_row["chain_schema"]["intermediate_entity"] == "Journal of Synthetic Methods"
 
 
 def test_synthesize_validated_file_stops_at_max_attempts(tmp_path):

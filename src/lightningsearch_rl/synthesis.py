@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from dataclasses import dataclass
 import json
 import os
@@ -224,6 +225,36 @@ def validate_synthetic_file(
     }
 
 
+def repair_chain_schema(row: dict) -> tuple[dict, bool, str | None]:
+    return _repair_chain_schema(row)
+
+
+def _repair_chain_schema(row: dict) -> tuple[dict, bool, str | None]:
+    original_validation = validate_synthetic_row(row, require_chain_schema=True)
+    if original_validation.valid:
+        return row, False, None
+    if original_validation.reason not in {
+        "intermediate entity missing from hop1",
+        "intermediate entity missing from hop2",
+    }:
+        return row, False, original_validation.reason
+
+    chain_schema = row.get("chain_schema")
+    if not isinstance(chain_schema, dict):
+        return row, False, original_validation.reason
+    hop1_title = str(chain_schema.get("hop1_title", "")).strip()
+    hop2_title = str(chain_schema.get("hop2_title", "")).strip()
+    if not hop1_title or not hop2_title or hop1_title == hop2_title:
+        return row, False, original_validation.reason
+
+    repaired = deepcopy(row)
+    repaired["chain_schema"]["intermediate_entity"] = hop2_title
+    repaired_validation = validate_synthetic_row(repaired, require_chain_schema=True)
+    if repaired_validation.valid:
+        return repaired, True, original_validation.reason
+    return row, False, original_validation.reason
+
+
 def synthesize_file(
     out_path: Path,
     count: int,
@@ -300,7 +331,9 @@ def synthesize_validated_file(
     max_tokens: int = 1200,
     retries: int = 3,
     require_chain_schema: bool = False,
+    repair_chain_schema: bool = False,
 ) -> dict[str, Any]:
+    repair_chain_schema_enabled = repair_chain_schema
     if target_valid < 0:
         raise ValueError("target_valid must be non-negative")
     if concurrency < 1:
@@ -326,6 +359,8 @@ def synthesize_validated_file(
     generated = 0
     valid_count = 0
     reject_count = 0
+    repair_attempt_count = 0
+    repair_success_count = 0
     api_failures: list[dict[str, str]] = []
 
     while valid_count < target_valid and requested < max_attempts:
@@ -364,8 +399,21 @@ def synthesize_validated_file(
                 row,
                 require_chain_schema=require_chain_schema,
             )
+            accepted_row = row
+            if not validation.valid and require_chain_schema and repair_chain_schema_enabled:
+                repair_attempt_count += 1
+                repaired_row, did_repair, original_reason = _repair_chain_schema(row)
+                if did_repair:
+                    repair_success_count += 1
+                    accepted_row = repaired_row
+                    validation = validate_synthetic_row(
+                        accepted_row,
+                        require_chain_schema=require_chain_schema,
+                    )
+                elif original_reason is not None:
+                    validation = ValidationResult(False, original_reason)
             if validation.valid and valid_count < target_valid:
-                _append_jsonl(valid_path, row)
+                _append_jsonl(valid_path, accepted_row)
                 valid_count += 1
             else:
                 reject_count += 1
@@ -397,6 +445,9 @@ def synthesize_validated_file(
         "rejects": str(rejects_path),
         "failures": api_failures,
         "require_chain_schema": require_chain_schema,
+        "repair_chain_schema": repair_chain_schema_enabled,
+        "repair_attempt_count": repair_attempt_count,
+        "repair_success_count": repair_success_count,
     }
 
 

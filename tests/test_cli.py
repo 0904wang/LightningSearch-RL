@@ -311,6 +311,7 @@ def test_synthetic_validated_cli_mock_pipeline_writes_target_valid_rows(tmp_path
                 "--summary",
                 str(summary),
                 "--require-chain-schema",
+                "--repair-chain-schema",
             ]
         )
         == 0
@@ -319,6 +320,9 @@ def test_synthetic_validated_cli_mock_pipeline_writes_target_valid_rows(tmp_path
     assert payload["valid_count"] == 2
     assert payload["reject_count"] == 0
     assert payload["stopped_reason"] == "target_valid_reached"
+    assert payload["repair_chain_schema"] is True
+    assert payload["repair_attempt_count"] == 0
+    assert payload["repair_success_count"] == 0
 
     assert (
         main(
