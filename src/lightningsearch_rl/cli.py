@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 from lightningsearch_rl.adapters import convert_2wiki_file, convert_hotpot_file
+from lightningsearch_rl.baseline import run_retrieval_baseline
 from lightningsearch_rl.corpus import load_corpus_jsonl
 from lightningsearch_rl.data import load_jsonl_examples
 from lightningsearch_rl.eval import evaluate_traces
@@ -27,10 +28,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare_hotpot.add_argument("--raw", required=True)
     prepare_hotpot.add_argument("--corpus", required=True)
     prepare_hotpot.add_argument("--examples", required=True)
+    prepare_hotpot.add_argument("--limit", type=int, default=None)
     prepare_2wiki = subparsers.add_parser("prepare-2wiki")
     prepare_2wiki.add_argument("--raw", required=True)
     prepare_2wiki.add_argument("--corpus", required=True)
     prepare_2wiki.add_argument("--examples", required=True)
+    prepare_2wiki.add_argument("--limit", type=int, default=None)
     build_index = subparsers.add_parser("build-index")
     build_index.add_argument("--corpus", required=True)
     build_index.add_argument("--index", required=True)
@@ -39,14 +42,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     eval_retrieval.add_argument("--index", required=True)
     eval_retrieval.add_argument("--out", required=True)
     eval_retrieval.add_argument("--top-k", type=int, default=5)
+    retrieval_baseline = subparsers.add_parser("retrieval-baseline")
+    retrieval_baseline.add_argument("--dataset", required=True)
+    retrieval_baseline.add_argument("--examples", required=True)
+    retrieval_baseline.add_argument("--index", required=True)
+    retrieval_baseline.add_argument("--report", required=True)
+    retrieval_baseline.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return _run_smoke(Path(args.data), Path(args.out_dir), args.top_k)
     if args.command == "prepare-hotpot":
-        convert_hotpot_file(Path(args.raw), Path(args.corpus), Path(args.examples))
+        convert_hotpot_file(
+            Path(args.raw),
+            Path(args.corpus),
+            Path(args.examples),
+            limit=args.limit,
+        )
         return 0
     if args.command == "prepare-2wiki":
-        convert_2wiki_file(Path(args.raw), Path(args.corpus), Path(args.examples))
+        convert_2wiki_file(
+            Path(args.raw),
+            Path(args.corpus),
+            Path(args.examples),
+            limit=args.limit,
+        )
         return 0
     if args.command == "build-index":
         save_lexical_index(Path(args.index), load_corpus_jsonl(Path(args.corpus)))
@@ -58,6 +77,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.top_k,
         )
         _write_json(Path(args.out), metrics)
+        return 0
+    if args.command == "retrieval-baseline":
+        run_retrieval_baseline(
+            args.dataset,
+            Path(args.examples),
+            Path(args.index),
+            Path(args.report),
+            args.top_k,
+        )
         return 0
     raise ValueError(f"unknown command: {args.command}")
 

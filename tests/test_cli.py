@@ -66,3 +66,50 @@ def test_shared_corpus_retrieval_cli_pipeline_writes_metrics(tmp_path):
 
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     assert metrics["recall_at_2"] == 1.0
+
+
+def test_retrieval_baseline_cli_writes_report_for_limited_mixed_input(tmp_path):
+    corpus = tmp_path / "corpus.jsonl"
+    examples = tmp_path / "examples.jsonl"
+    index = tmp_path / "index.json"
+    report = tmp_path / "baseline_report.json"
+
+    assert (
+        main(
+            [
+                "prepare-hotpot",
+                "--raw",
+                "tests/fixtures/hotpot_mixed_raw.jsonl",
+                "--corpus",
+                str(corpus),
+                "--examples",
+                str(examples),
+                "--limit",
+                "1",
+            ]
+        )
+        == 0
+    )
+    assert main(["build-index", "--corpus", str(corpus), "--index", str(index)]) == 0
+    assert (
+        main(
+            [
+                "retrieval-baseline",
+                "--dataset",
+                "hotpot",
+                "--examples",
+                str(examples),
+                "--index",
+                str(index),
+                "--report",
+                str(report),
+                "--top-k",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["example_count"] == 1
+    assert payload["metrics"]["recall_at_2"] == 1.0
