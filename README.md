@@ -118,3 +118,24 @@ Expected report fields:
 - `example_count`
 - `metrics`
 - `artifacts`
+
+## Phase 3A SFT Export Workflow
+
+Prepare a limited HotpotQA-like file and build the shared lexical index:
+
+```bash
+python -m lightningsearch_rl.cli prepare-hotpot --raw tests/fixtures/hotpot_mixed_raw.jsonl --corpus results/phase3a/corpus.jsonl --examples results/phase3a/examples.jsonl --limit 1
+python -m lightningsearch_rl.cli build-index --corpus results/phase3a/corpus.jsonl --index results/phase3a/index.json
+```
+
+Export deterministic search-agent trajectories as SFT conversations:
+
+```bash
+python -m lightningsearch_rl.cli export-sft --examples results/phase2b/examples.jsonl --index results/phase2b/index.json --out-dir results/phase3a/sft --top-k 2
+```
+
+Expected SFT artifacts:
+
+- `results/phase3a/sft/sft.jsonl`
+- `results/phase3a/sft/traces.jsonl`
+- `results/phase3a/sft/summary.json`
