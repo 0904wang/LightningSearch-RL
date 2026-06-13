@@ -33,6 +33,10 @@ class EpisodeTrace:
 
 def run_rule_based_episode(example: QAExample, top_k: int = 5) -> EpisodeTrace:
     retriever = LexicalRetriever(example.corpus)
+    return run_retrieval_episode(example, retriever, top_k=top_k)
+
+
+def run_retrieval_episode(example: QAExample, retriever: LexicalRetriever, top_k: int = 5) -> EpisodeTrace:
     query = build_search_query(example.question)
     observation = retriever.search(query, top_k=top_k)
     final_answer = _answer_from_observation(example, observation)
