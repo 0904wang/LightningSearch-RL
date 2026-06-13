@@ -19,6 +19,7 @@ class QAExample:
     answers: list[str]
     gold_doc_ids: list[str]
     corpus: list[Passage]
+    corpus_doc_ids: list[str]
 
 
 def load_jsonl_examples(path: Path) -> list[QAExample]:
@@ -28,20 +29,24 @@ def load_jsonl_examples(path: Path) -> list[QAExample]:
             if not line.strip():
                 continue
             row = json.loads(line)
+            corpus = [
+                Passage(
+                    doc_id=item["doc_id"],
+                    title=item.get("title", ""),
+                    text=item["text"],
+                )
+                for item in row.get("corpus", [])
+            ]
             examples.append(
                 QAExample(
                     id=row["id"],
                     question=row["question"],
                     answers=list(row["answers"]),
                     gold_doc_ids=list(row.get("gold_doc_ids", [])),
-                    corpus=[
-                        Passage(
-                            doc_id=item["doc_id"],
-                            title=item.get("title", ""),
-                            text=item["text"],
-                        )
-                        for item in row.get("corpus", [])
-                    ],
+                    corpus=corpus,
+                    corpus_doc_ids=list(
+                        row.get("corpus_doc_ids", [passage.doc_id for passage in corpus])
+                    ),
                 )
             )
     return examples
