@@ -114,6 +114,8 @@ def build_synthesis_prompt(request_id: str, topic: str, use_few_shot: bool = Fal
             '- "Center for Applied Optics" appears verbatim in both hop1 and hop2 evidence sentences.\n'
             "- chain_schema.intermediate_entity is exactly the title of the second context item.\n"
             '- The final answer "Bluehaven" only appears in the hop2 evidence sentence, never in hop1.\n'
+            '- The final answer is not a context title: Bluehaven is not a title in context.\n'
+            "- Do not set answer to hop1_title. Do not set answer to hop2_title. Use an attribute value instead.\n"
             "- supporting_facts and chain_schema refer to the same (title, sentence_index) pairs."
         )
     else:

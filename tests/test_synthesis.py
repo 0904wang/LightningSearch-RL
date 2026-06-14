@@ -313,6 +313,16 @@ def test_build_synthesis_prompt_includes_few_shot_example_when_enabled():
     assert "create one synthetic" in user
 
 
+def test_build_synthesis_prompt_few_shot_emphasizes_answer_not_title():
+    messages = build_synthesis_prompt("syn-000001", "research", use_few_shot=True)
+    system = messages[0]["content"].lower()
+
+    assert "final answer is not a context title" in system
+    assert "bluehaven is not a title" in system
+    assert "do not set answer to hop1_title" in system
+    assert "do not set answer to hop2_title" in system
+
+
 def test_build_synthesis_prompt_few_shot_example_passes_strict_validation():
     messages = build_synthesis_prompt("syn-000001", "research", use_few_shot=True)
     system = messages[0]["content"]
