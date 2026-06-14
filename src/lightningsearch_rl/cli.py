@@ -10,6 +10,7 @@ from lightningsearch_rl.baseline import run_retrieval_baseline
 from lightningsearch_rl.corpus import load_corpus_jsonl
 from lightningsearch_rl.data import load_jsonl_examples
 from lightningsearch_rl.eval import evaluate_traces
+from lightningsearch_rl.diagnostics import diagnose_dataset
 from lightningsearch_rl.grpo import export_grpo
 from lightningsearch_rl.index_store import load_lexical_index, save_lexical_index
 from lightningsearch_rl.rewards import compute_reward
@@ -69,6 +70,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     export_grpo_parser.add_argument("--index", required=True)
     export_grpo_parser.add_argument("--out-dir", required=True)
     export_grpo_parser.add_argument("--top-k", type=int, default=5)
+    diagnose_data = subparsers.add_parser("diagnose-data")
+    diagnose_data.add_argument("--valid", required=True)
+    diagnose_data.add_argument("--grpo-dir", required=True)
+    diagnose_data.add_argument("--out", required=True)
     synthesize_data = subparsers.add_parser("synthesize-data")
     synthesize_data.add_argument("--out", required=True)
     synthesize_data.add_argument("--count", type=int, required=True)
@@ -162,6 +167,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(args.out_dir),
             top_k=args.top_k,
         )
+        return 0
+    if args.command == "diagnose-data":
+        report = diagnose_dataset(Path(args.valid), Path(args.grpo_dir))
+        _write_json(Path(args.out), report)
         return 0
     if args.command == "synthesize-data":
         topics = _parse_topics(args.topics)
