@@ -140,6 +140,7 @@ def test_phase5b_tiny_grpo_smoke_4gpu_config_builds_4gpu_command(tmp_path):
     assert summary["experiment_name"] == "phase5b-tiny-grpo-smoke-4gpu"
     assert summary["train_rows"] == 16
     command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
+    assert "actor_rollout_ref.model.path=/data/wzl/LightningSearch-RL/models/Qwen/Qwen3-4B" in command
     assert "trainer.n_gpus_per_node=4" in command
     assert "data.train_batch_size=8" in command
     assert "actor_rollout_ref.actor.ppo_mini_batch_size=4" in command

@@ -4,7 +4,7 @@ rollouts_path: /data/wzl/LightningSearch-RL/results/phase4g-deepseek-titlefix-50
 train_samples: 16
 val_samples: 4
 seed: 20260614
-model_path: Qwen/Qwen3-4B
+model_path: /data/wzl/LightningSearch-RL/models/Qwen/Qwen3-4B
 max_prompt_length: 512
 max_response_length: 256
 train_batch_size: 8
