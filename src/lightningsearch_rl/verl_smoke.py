@@ -197,6 +197,8 @@ def _write_parquet_if_available(path: Path, rows: list[dict[str, Any]]) -> bool:
 def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Path, checkpoint_dir: Path) -> list[str]:
     logger = json.dumps(config["logger"])
     return [
+        "HF_HOME=/data/wzl/LightningSearch-RL/.cache/huggingface",
+        "HF_ENDPOINT=https://hf-mirror.com",
         "PYTHONNOUSERSITE=1",
         "python",
         "-m",
@@ -230,8 +232,8 @@ def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Pa
 
 
 def _format_shell_command(parts: list[str]) -> str:
-    prefix = parts[:4]
-    overrides = parts[4:]
+    prefix = parts[:6]
+    overrides = parts[6:]
     return " ".join(prefix + [_single_quote(part) for part in overrides])
 
 

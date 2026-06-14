@@ -98,8 +98,14 @@ def test_prepare_verl_smoke_writes_dry_run_artifacts(tmp_path):
     assert (tmp_path / "results" / "launch_command.txt").exists()
     assert (tmp_path / "results" / "dry_run_summary.json").exists()
     command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
-    assert command.startswith("PYTHONNOUSERSITE=1 python -m verl.trainer.main_ppo")
+    assert command.startswith(
+        "HF_HOME=/data/wzl/LightningSearch-RL/.cache/huggingface "
+        "HF_ENDPOINT=https://hf-mirror.com "
+        "PYTHONNOUSERSITE=1 python -m verl.trainer.main_ppo"
+    )
     assert "verl.trainer.main_ppo" in command
+    assert "HF_HOME=/data/wzl/LightningSearch-RL/.cache/huggingface" in command
+    assert "HF_ENDPOINT=https://hf-mirror.com" in command
     assert "'data.train_files=" in command
     assert "algorithm.adv_estimator=grpo" in command
     assert "actor_rollout_ref.actor.ppo_mini_batch_size=1" in command
