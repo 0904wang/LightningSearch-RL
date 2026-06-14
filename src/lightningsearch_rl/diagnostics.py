@@ -91,6 +91,8 @@ def _load_reward_summary(grpo_dir: Path) -> dict:
         reward = row.get("reward", {})
         if isinstance(reward, dict) and "total" in reward:
             rewards.append(float(reward["total"]))
+        elif "total" in row:
+            rewards.append(float(row["total"]))
         elif "total_reward" in row:
             rewards.append(float(row["total_reward"]))
     summary = _numeric_summary(rewards)
