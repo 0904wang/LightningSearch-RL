@@ -104,3 +104,34 @@ def test_diagnose_dataset_cli_writes_report(tmp_path):
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["row_count"] == 1
     assert payload["reward"]["avg"] == 1.0
+
+
+def test_diagnose_dataset_reads_top_level_total_reward_records(tmp_path):
+    valid = tmp_path / "valid.jsonl"
+    grpo_dir = tmp_path / "grpo"
+    grpo_dir.mkdir()
+    row = _row(
+        "a",
+        "Which city hosts the archive associated with Ada?",
+        "Bluehaven",
+        [
+            ["Ada", ["Ada founded the Center for Applied Optics in 2015."]],
+            ["Center for Applied Optics", ["The Center for Applied Optics is located in Bluehaven."]],
+        ],
+        [["Ada", 0], ["Center for Applied Optics", 0]],
+    )
+    valid.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    (grpo_dir / "reward_records.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "a", "total": 0.27}),
+                json.dumps({"id": "b", "total": 0.17}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = diagnose_dataset(valid, grpo_dir)
+
+    assert report["reward"] == {"count": 2, "min": 0.17, "max": 0.27, "avg": 0.22}
