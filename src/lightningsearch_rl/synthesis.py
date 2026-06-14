@@ -84,14 +84,47 @@ class DeepSeekClient:
         return decoded
 
 
-def build_synthesis_prompt(request_id: str, topic: str) -> list[dict[str, str]]:
+def build_synthesis_prompt(request_id: str, topic: str, use_few_shot: bool = False) -> list[dict[str, str]]:
+    if use_few_shot:
+        system_content = (
+            "You create synthetic HotpotQA-style multi-hop QA data for a retrieval "
+            "agent. Return only one valid json object and no markdown.\n\n"
+            "Here is an example of a valid output:\n"
+            '{\n'
+            '  "id": "EXAMPLE",\n'
+            '  "question": "Which city is home to the institute led by Dr. Helen Park?",\n'
+            '  "answer": "Bluehaven",\n'
+            '  "context": [\n'
+            '    ["Dr. Helen Park", ["Dr. Helen Park founded the Center for Applied Optics in 2015."]],\n'
+            '    ["Center for Applied Optics", ["The Center for Applied Optics is located in downtown Bluehaven."]],\n'
+            '    ["PhotonTech Corp", ["PhotonTech Corp is a private company not related to Dr. Park."]]\n'
+            '  ],\n'
+            '  "supporting_facts": [["Dr. Helen Park", 0], ["Center for Applied Optics", 0]],\n'
+            '  "chain_schema": {\n'
+            '    "hop1_title": "Dr. Helen Park",\n'
+            '    "hop1_sentence_index": 0,\n'
+            '    "intermediate_entity": "Center for Applied Optics",\n'
+            '    "hop2_title": "Center for Applied Optics",\n'
+            '    "hop2_sentence_index": 0,\n'
+            '    "answer_type": "city",\n'
+            '    "final_answer": "Bluehaven"\n'
+            '  }\n'
+            '}\n\n'
+            "Notice how:\n"
+            '- "Center for Applied Optics" appears verbatim in both hop1 and hop2 evidence sentences.\n'
+            "- chain_schema.intermediate_entity is exactly the title of the second context item.\n"
+            '- The final answer "Bluehaven" only appears in the hop2 evidence sentence, never in hop1.\n'
+            "- supporting_facts and chain_schema refer to the same (title, sentence_index) pairs."
+        )
+    else:
+        system_content = (
+            "You create synthetic HotpotQA-style multi-hop QA data for a retrieval "
+            "agent. Return only one valid json object and no markdown."
+        )
     return [
         {
             "role": "system",
-            "content": (
-                "You create synthetic HotpotQA-style multi-hop QA data for a retrieval "
-                "agent. Return only one valid json object and no markdown."
-            ),
+            "content": system_content,
         },
         {
             "role": "user",
@@ -332,6 +365,7 @@ def synthesize_validated_file(
     retries: int = 3,
     require_chain_schema: bool = False,
     repair_chain_schema: bool = False,
+    few_shot_chain_schema: bool = False,
 ) -> dict[str, Any]:
     repair_chain_schema_enabled = repair_chain_schema
     if target_valid < 0:
@@ -384,6 +418,7 @@ def synthesize_validated_file(
                         temperature=temperature,
                         max_tokens=max_tokens,
                         retries=retries,
+                        use_few_shot=few_shot_chain_schema,
                     ),
                     tasks,
                 )
@@ -448,6 +483,7 @@ def synthesize_validated_file(
         "repair_chain_schema": repair_chain_schema_enabled,
         "repair_attempt_count": repair_attempt_count,
         "repair_success_count": repair_success_count,
+        "few_shot_chain_schema": few_shot_chain_schema,
     }
 
 
@@ -496,8 +532,9 @@ def _synthesize_one(
     temperature: float,
     max_tokens: int,
     retries: int,
+    use_few_shot: bool = False,
 ) -> dict[str, Any]:
-    messages = build_synthesis_prompt(task.request_id, task.topic)
+    messages = build_synthesis_prompt(task.request_id, task.topic, use_few_shot=use_few_shot)
     last_error = ""
     for attempt in range(retries):
         try:

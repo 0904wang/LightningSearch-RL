@@ -187,7 +187,7 @@ def test_validate_synthetic_row_rejects_answer_in_multiple_supporting_sentences(
 
 def test_validate_synthetic_row_rejects_non_ascii_text():
     row = _valid_row()
-    row["answer"] = "Chlo谷 Zhao"
+    row["answer"] = "Chlo鐠?Zhao"
 
     result = validate_synthetic_row(row)
 
@@ -299,6 +299,45 @@ def test_build_synthesis_prompt_emphasizes_distinct_titles_and_verbatim_answer()
     assert "ascii-only english" in user_prompt
 
 
+
+def test_build_synthesis_prompt_includes_few_shot_example_when_enabled():
+    messages = build_synthesis_prompt("syn-000001", "research", use_few_shot=True)
+    system = messages[0]["content"].lower()
+    user = messages[-1]["content"].lower()
+
+    assert "here is an example" in system
+    assert "dr. helen park" in system
+    assert "center for applied optics" in system
+    assert "bluehaven" in system
+    assert "chain_schema" in system
+    assert "create one synthetic" in user
+
+
+def test_build_synthesis_prompt_few_shot_example_passes_strict_validation():
+    messages = build_synthesis_prompt("syn-000001", "research", use_few_shot=True)
+    system = messages[0]["content"]
+
+    import json as _json
+
+    example = _json.loads(
+        system[
+            system.index("{") : system.rindex("}") + 1
+        ]
+    )
+
+    result = validate_synthetic_row(
+        {"id": "EXAMPLE", **{k: v for k, v in example.items() if k != "id"}},
+        require_chain_schema=True,
+    )
+    assert result.valid is True
+
+
+def test_build_synthesis_prompt_omits_few_shot_example_by_default():
+    messages = build_synthesis_prompt("syn-000001", "research")
+    system = messages[0]["content"].lower()
+
+    assert "here is an example" not in system
+    assert "dr. helen park" not in system
 def test_validate_synthetic_file_can_require_chain_schema(tmp_path):
     raw_path = tmp_path / "raw.jsonl"
     valid_path = tmp_path / "valid.jsonl"
