@@ -206,6 +206,69 @@ def test_export_grpo_cli_writes_rollouts_transitions_rewards_and_summary(tmp_pat
     assert (out_dir / "summary.json").exists()
 
 
+def test_train_cli_dry_run_writes_launch_artifacts(tmp_path):
+    rollouts = tmp_path / "rollouts.jsonl"
+    rollouts.write_text(
+        json.dumps(
+            {
+                "id": "r0",
+                "prompt": "Question?",
+                "response": "<answer>Answer</answer>",
+                "reward": 1.0,
+                "metadata": {
+                    "answer": "Answer",
+                    "search_count": 1,
+                    "gold_doc_ids": ["gold"],
+                    "retrieved_doc_ids": ["gold"],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+experiment_name: cli-smoke
+project_name: lightningsearch-rl
+rollouts_path: {rollouts}
+train_samples: 1
+val_samples: 0
+seed: 1
+model_path: Qwen/Qwen3-4B
+max_prompt_length: 128
+max_response_length: 64
+train_batch_size: 1
+ppo_mini_batch_size: 1
+ppo_micro_batch_size_per_gpu: 1
+n_gpus_per_node: 1
+total_training_steps: 1
+save_freq: 1
+test_freq: -1
+logger:
+  - console
+""".strip(),
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "train",
+                "--config",
+                str(config),
+                "--output-dir",
+                str(tmp_path / "results"),
+                "--checkpoint-dir",
+                str(tmp_path / "checkpoints"),
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
+    assert (tmp_path / "results" / "dry_run_summary.json").exists()
+
+
 def test_synthetic_cli_mock_generation_validation_and_prepare_pipeline(tmp_path):
     raw = tmp_path / "synthetic_raw.jsonl"
     synthesis_summary = tmp_path / "synthesis_summary.json"
