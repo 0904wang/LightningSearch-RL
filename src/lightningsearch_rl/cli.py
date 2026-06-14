@@ -27,6 +27,7 @@ from lightningsearch_rl.synthesis import (
     validate_synthetic_file,
 )
 from lightningsearch_rl.transitions import build_transitions
+from lightningsearch_rl.verl_smoke import prepare_verl_smoke
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -74,6 +75,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     diagnose_data.add_argument("--valid", required=True)
     diagnose_data.add_argument("--grpo-dir", required=True)
     diagnose_data.add_argument("--out", required=True)
+    train = subparsers.add_parser("train")
+    train.add_argument("--config", required=True)
+    train.add_argument("--output-dir", required=True)
+    train.add_argument("--checkpoint-dir", required=True)
+    train.add_argument("--dry-run", action="store_true")
+    train.add_argument("--print-command", action="store_true")
     synthesize_data = subparsers.add_parser("synthesize-data")
     synthesize_data.add_argument("--out", required=True)
     synthesize_data.add_argument("--count", type=int, required=True)
@@ -171,6 +178,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "diagnose-data":
         report = diagnose_dataset(Path(args.valid), Path(args.grpo_dir))
         _write_json(Path(args.out), report)
+        return 0
+    if args.command == "train":
+        summary = prepare_verl_smoke(
+            Path(args.config),
+            Path(args.output_dir),
+            Path(args.checkpoint_dir),
+            dry_run=args.dry_run,
+            execute=not args.dry_run,
+            print_command=args.print_command,
+        )
+        if args.print_command:
+            print(summary["launch_command"])
         return 0
     if args.command == "synthesize-data":
         topics = _parse_topics(args.topics)

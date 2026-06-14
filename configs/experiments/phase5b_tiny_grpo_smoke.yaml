@@ -1,0 +1,18 @@
+experiment_name: phase5b-tiny-grpo-smoke
+project_name: lightningsearch-rl
+rollouts_path: /data/wzl/LightningSearch-RL/results/phase4g-deepseek-titlefix-500/grpo/rollouts.jsonl
+train_samples: 16
+val_samples: 4
+seed: 20260614
+model_path: Qwen/Qwen3-4B
+max_prompt_length: 512
+max_response_length: 256
+train_batch_size: 4
+ppo_mini_batch_size: 2
+ppo_micro_batch_size_per_gpu: 1
+n_gpus_per_node: 1
+total_training_steps: 1
+save_freq: 1
+test_freq: -1
+logger:
+  - console
