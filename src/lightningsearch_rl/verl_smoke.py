@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -232,4 +231,8 @@ def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Pa
 def _format_shell_command(parts: list[str]) -> str:
     prefix = parts[:4]
     overrides = parts[4:]
-    return " ".join(prefix + [shlex.quote(part) for part in overrides])
+    return " ".join(prefix + [_single_quote(part) for part in overrides])
+
+
+def _single_quote(value: str) -> str:
+    return "'" + value.replace("'", "'\"'\"'") + "'"
