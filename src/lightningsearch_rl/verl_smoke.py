@@ -211,6 +211,7 @@ def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Pa
         "actor_rollout_ref.rollout.tensor_model_parallel_size=1",
         "actor_rollout_ref.rollout.n=2",
         "actor_rollout_ref.rollout.gpu_memory_utilization=0.25",
+        "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1",
         f"actor_rollout_ref.actor.ppo_mini_batch_size={config['ppo_mini_batch_size']}",
         f"actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu={config['ppo_micro_batch_size_per_gpu']}",
         "actor_rollout_ref.actor.ppo_max_token_len_per_gpu=2048",

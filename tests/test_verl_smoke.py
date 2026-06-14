@@ -106,6 +106,7 @@ def test_prepare_verl_smoke_writes_dry_run_artifacts(tmp_path):
     assert "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1" in command
     assert "actor_rollout_ref.rollout.name=hf" in command
     assert "actor_rollout_ref.rollout.tensor_model_parallel_size=1" in command
+    assert "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1" in command
 
 
 def test_prepare_verl_smoke_execute_requires_parquet(monkeypatch, tmp_path):
