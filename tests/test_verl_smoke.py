@@ -98,8 +98,14 @@ def test_prepare_verl_smoke_writes_dry_run_artifacts(tmp_path):
     assert (tmp_path / "results" / "launch_command.txt").exists()
     assert (tmp_path / "results" / "dry_run_summary.json").exists()
     command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
-    assert command.startswith("PYTHONNOUSERSITE=1 python -m verl.trainer.main_ppo")
+    assert command.startswith(
+        "HF_HOME=/data/wzl/LightningSearch-RL/.cache/huggingface "
+        "HF_ENDPOINT=https://hf-mirror.com "
+        "PYTHONNOUSERSITE=1 python -m verl.trainer.main_ppo"
+    )
     assert "verl.trainer.main_ppo" in command
+    assert "HF_HOME=/data/wzl/LightningSearch-RL/.cache/huggingface" in command
+    assert "HF_ENDPOINT=https://hf-mirror.com" in command
     assert "'data.train_files=" in command
     assert "algorithm.adv_estimator=grpo" in command
     assert "actor_rollout_ref.actor.ppo_mini_batch_size=1" in command
@@ -107,6 +113,36 @@ def test_prepare_verl_smoke_writes_dry_run_artifacts(tmp_path):
     assert "actor_rollout_ref.rollout.name=hf" in command
     assert "actor_rollout_ref.rollout.tensor_model_parallel_size=1" in command
     assert "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1" in command
+
+
+def test_phase5b_tiny_grpo_smoke_4gpu_config_builds_4gpu_command(tmp_path):
+    source_config = Path("configs/experiments/phase5b_tiny_grpo_smoke_4gpu.yaml")
+    config_text = source_config.read_text(encoding="utf-8")
+    rollouts = tmp_path / "rollouts.jsonl"
+    _write_rollouts(rollouts, count=20)
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        config_text.replace(
+            "/data/wzl/LightningSearch-RL/results/phase4g-deepseek-titlefix-500/grpo/rollouts.jsonl",
+            str(rollouts),
+        ),
+        encoding="utf-8",
+    )
+
+    summary = prepare_verl_smoke(
+        config,
+        tmp_path / "results",
+        tmp_path / "checkpoints",
+        dry_run=True,
+        execute=False,
+    )
+
+    assert summary["experiment_name"] == "phase5b-tiny-grpo-smoke-4gpu"
+    assert summary["train_rows"] == 16
+    command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
+    assert "trainer.n_gpus_per_node=4" in command
+    assert "data.train_batch_size=8" in command
+    assert "actor_rollout_ref.actor.ppo_mini_batch_size=4" in command
 
 
 def test_prepare_verl_smoke_execute_requires_parquet(monkeypatch, tmp_path):
