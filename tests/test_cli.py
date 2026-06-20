@@ -1021,6 +1021,84 @@ def test_build_preference_pairs_cli_writes_pair_artifacts(tmp_path):
     assert len((out_dir / "pairs.jsonl").read_text(encoding="utf-8").splitlines()) == 1
 
 
+def test_build_synthetic_search_preferences_cli_writes_pair_artifacts(tmp_path):
+    transitions = tmp_path / "transitions.jsonl"
+    out_dir = tmp_path / "synthetic-pairs"
+    passages = [
+        {
+            "doc_id": "doc_voss",
+            "title": "Dr. Elena Voss",
+            "text": "Dr. Elena Voss founded the Global Health Initiative in 2012.",
+        },
+        {
+            "doc_id": "doc_ghi",
+            "title": "Global Health Initiative",
+            "text": "The Global Health Initiative won the Nobel Peace Prize in 2021.",
+        },
+        {
+            "doc_id": "doc_archive",
+            "title": "Ocean Archive",
+            "text": "The Ocean Archive catalogues reef maps and harbor records.",
+        },
+    ]
+    transitions.write_text(
+        json.dumps(
+            {
+                "id": "syn-a",
+                "transition_id": "syn-a:0:search",
+                "action_type": "search",
+                "action": "<search>Elena Voss Global Health Initiative Nobel Peace Prize</search>",
+                "query": "Elena Voss Global Health Initiative Nobel Peace Prize",
+                "state_messages": [
+                    {"role": "system", "content": "Output one action."},
+                    {
+                        "role": "user",
+                        "content": "Which award did the organization founded by Dr. Elena Voss receive in 2021?",
+                    },
+                ],
+                "candidate_passages": passages,
+                "gold_evidence_doc_ids": ["doc_voss", "doc_ghi"],
+                "metadata": {
+                    "gold_answer": "Nobel Peace Prize",
+                    "candidate_doc_ids": ["doc_voss", "doc_ghi", "doc_archive"],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "build-synthetic-search-preferences",
+                "--transitions",
+                str(transitions),
+                "--out-dir",
+                str(out_dir),
+                "--search-reward-top-k",
+                "2",
+                "--min-chosen-score",
+                "0.8",
+                "--min-score-gap",
+                "0.2",
+                "--max-negatives-per-transition",
+                "2",
+                "--val-fraction",
+                "0",
+            ]
+        )
+        == 0
+    )
+
+    summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["pair_count"] >= 1
+    assert summary["pair_category_counts"] == {"search_vs_search": summary["pair_count"]}
+    assert (out_dir / "pairs.jsonl").exists()
+    assert (out_dir / "candidates.jsonl").exists()
+    assert (out_dir / "reward_dump.jsonl").exists()
+
+
 def test_probe_reward_variance_cli_dry_run_writes_requests(tmp_path):
     transitions = tmp_path / "transitions.jsonl"
     out_dir = tmp_path / "reward-probe"

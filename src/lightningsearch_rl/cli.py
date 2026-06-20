@@ -26,6 +26,7 @@ from lightningsearch_rl.runtime import run_rule_based_episode
 from lightningsearch_rl.sft import export_sft
 from lightningsearch_rl.sft_turns import export_sft_turns
 from lightningsearch_rl.sft_warmup import export_sft_warmup
+from lightningsearch_rl.synthetic_search_preferences import build_synthetic_search_preferences
 from lightningsearch_rl.reward_variance_filter import filter_transitions_by_reward_variance
 from lightningsearch_rl.synthesis import (
     DEFAULT_DEEPSEEK_BASE_URL,
@@ -140,6 +141,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     preference_pairs.add_argument("--max-answer-pairs", type=int, default=None)
     preference_pairs.add_argument("--val-fraction", type=float, default=0.05)
     preference_pairs.add_argument("--seed", type=int, default=0)
+    synthetic_search_preferences = subparsers.add_parser("build-synthetic-search-preferences")
+    synthetic_search_preferences.add_argument("--transitions", required=True)
+    synthetic_search_preferences.add_argument("--out-dir", required=True)
+    synthetic_search_preferences.add_argument("--offset", type=int, default=0)
+    synthetic_search_preferences.add_argument("--limit", type=int, default=None)
+    synthetic_search_preferences.add_argument("--search-reward-top-k", type=int, default=8)
+    synthetic_search_preferences.add_argument("--min-chosen-score", type=float, default=0.5)
+    synthetic_search_preferences.add_argument("--min-score-gap", type=float, default=0.05)
+    synthetic_search_preferences.add_argument("--max-negatives-per-transition", type=int, default=4)
+    synthetic_search_preferences.add_argument("--val-fraction", type=float, default=0.1)
+    synthetic_search_preferences.add_argument("--seed", type=int, default=0)
     reward_probe = subparsers.add_parser("probe-reward-variance")
     reward_probe.add_argument("--transitions", required=True)
     reward_probe.add_argument("--model", required=True)
@@ -380,6 +392,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_pairs_per_group=args.max_pairs_per_group,
             max_search_pairs=args.max_search_pairs,
             max_answer_pairs=args.max_answer_pairs,
+            val_fraction=args.val_fraction,
+            seed=args.seed,
+        )
+        return 0
+    if args.command == "build-synthetic-search-preferences":
+        build_synthetic_search_preferences(
+            transitions_path=Path(args.transitions),
+            out_dir=Path(args.out_dir),
+            offset=args.offset,
+            limit=args.limit,
+            search_reward_top_k=args.search_reward_top_k,
+            min_chosen_score=args.min_chosen_score,
+            min_score_gap=args.min_score_gap,
+            max_negatives_per_transition=args.max_negatives_per_transition,
             val_fraction=args.val_fraction,
             seed=args.seed,
         )
