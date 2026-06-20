@@ -28,6 +28,34 @@ def test_reward_probe_dry_run_writes_probe_requests(tmp_path):
     assert requests[0]["extra_info"]["search_reward_top_k"] == 8
 
 
+def test_reward_probe_can_filter_to_search_stage_and_add_diversity_instruction(tmp_path):
+    transitions = tmp_path / "transitions.jsonl"
+    out_dir = tmp_path / "probe"
+    _write_transitions(transitions)
+
+    summary = run_reward_probe(
+        transitions_path=transitions,
+        out_dir=out_dir,
+        model_path="unused-model",
+        stages=("search",),
+        search_diversity_prompt=True,
+        samples_per_prompt=8,
+        dry_run=True,
+    )
+
+    requests = _read_jsonl(out_dir / "probe_requests.jsonl")
+    assert summary["stages"] == ["search"]
+    assert summary["filtered_transition_count"] == 1
+    assert summary["selected_transition_count"] == 1
+    assert summary["expected_reward_rows"] == 8
+    assert summary["stage_counts"] == {"search": 1}
+    assert len(requests) == 1
+    assert requests[0]["extra_info"]["search_diversity_prompt"] is True
+    assert requests[0]["extra_info"]["reward_stage"] == "search"
+    assert "Search-probe mode" in requests[0]["prompt"][0]["content"]
+    assert "Do not output <answer>" in requests[0]["prompt"][0]["content"]
+
+
 def test_reward_probe_scores_stubbed_samples_and_writes_reward_dump(tmp_path):
     transitions = tmp_path / "transitions.jsonl"
     out_dir = tmp_path / "probe"

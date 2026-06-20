@@ -25,6 +25,8 @@ def run_reward_probe(
     max_new_tokens: int = 64,
     search_reward_top_k: int = 8,
     answer_token_f1_threshold: float | None = None,
+    stages: tuple[str, ...] = (),
+    search_diversity_prompt: bool = False,
     dry_run: bool = False,
     generator: ProbeGenerator | None = None,
     backend: str = "vllm",
@@ -46,9 +48,16 @@ def run_reward_probe(
         raise ValueError("batch_size must be >= 1")
 
     transition_rows = _load_jsonl(transitions_path)
-    selected_rows = transition_rows[offset:] if limit is None else transition_rows[offset : offset + limit]
+    selected_stages = tuple(str(stage).strip().lower() for stage in stages if str(stage).strip())
+    filtered_rows = _filter_rows_by_stage(transition_rows, selected_stages)
+    selected_rows = filtered_rows[offset:] if limit is None else filtered_rows[offset : offset + limit]
     requests = [
-        _build_probe_request(row, index, search_reward_top_k=search_reward_top_k)
+        _build_probe_request(
+            row,
+            index,
+            search_reward_top_k=search_reward_top_k,
+            search_diversity_prompt=search_diversity_prompt,
+        )
         for index, row in enumerate(selected_rows, start=offset)
     ]
 
@@ -64,6 +73,8 @@ def run_reward_probe(
         max_new_tokens=max_new_tokens,
         search_reward_top_k=search_reward_top_k,
         answer_token_f1_threshold=answer_token_f1_threshold,
+        stages=selected_stages,
+        search_diversity_prompt=search_diversity_prompt,
         backend=backend,
         batch_size=batch_size,
         temperature=temperature,
@@ -74,6 +85,7 @@ def run_reward_probe(
         max_model_len=max_model_len,
         tensor_parallel_size=tensor_parallel_size,
         input_transition_count=len(transition_rows),
+        filtered_transition_count=len(filtered_rows),
         requests=requests,
         dry_run=dry_run,
     )
@@ -140,6 +152,7 @@ def _build_probe_request(
     index: int,
     *,
     search_reward_top_k: int,
+    search_diversity_prompt: bool = False,
 ) -> dict[str, Any]:
     prompt = row.get("state_messages")
     if not isinstance(prompt, list) or not prompt:
@@ -153,9 +166,10 @@ def _build_probe_request(
     transition_id = str(row.get("transition_id") or f"{row.get('id', 'transition')}:{index}:{action_type}")
     source_id = str(row.get("id") or transition_id.split(":", 1)[0])
     ground_truth = "" if action_type == "search" else str(metadata.get("gold_answer", ""))
+    request_prompt = _search_diversity_prompt(prompt) if search_diversity_prompt and action_type == "search" else prompt
     return {
         "request_index": index,
-        "prompt": prompt,
+        "prompt": request_prompt,
         "ground_truth": ground_truth,
         "extra_info": {
             "id": transition_id,
@@ -167,6 +181,7 @@ def _build_probe_request(
             "retrieved_doc_ids": _list(row.get("observation_doc_ids")),
             "candidate_passages": _list(row.get("candidate_passages")),
             "search_reward_top_k": search_reward_top_k,
+            "search_diversity_prompt": bool(search_diversity_prompt and action_type == "search"),
             "reward_stage": action_type,
             "expected_action": str(row.get("action", "")),
             "precomputed_step_reward": _float(row.get("reward")),
@@ -271,6 +286,8 @@ def _summary(
     max_new_tokens: int,
     search_reward_top_k: int,
     answer_token_f1_threshold: float | None,
+    stages: tuple[str, ...],
+    search_diversity_prompt: bool,
     backend: str,
     batch_size: int,
     temperature: float,
@@ -281,6 +298,7 @@ def _summary(
     max_model_len: int,
     tensor_parallel_size: int,
     input_transition_count: int,
+    filtered_transition_count: int,
     requests: list[dict[str, Any]],
     dry_run: bool,
 ) -> dict[str, Any]:
@@ -295,6 +313,8 @@ def _summary(
         "max_new_tokens": max_new_tokens,
         "search_reward_top_k": search_reward_top_k,
         "answer_token_f1_threshold": answer_token_f1_threshold,
+        "stages": list(stages),
+        "search_diversity_prompt": search_diversity_prompt,
         "backend": backend,
         "batch_size": batch_size,
         "temperature": temperature,
@@ -305,6 +325,7 @@ def _summary(
         "max_model_len": max_model_len,
         "tensor_parallel_size": tensor_parallel_size,
         "input_transition_count": input_transition_count,
+        "filtered_transition_count": filtered_transition_count,
         "selected_transition_count": len(requests),
         "source_count": len({request["extra_info"]["source_id"] for request in requests}),
         "stage_counts": _stage_counts(requests),
@@ -377,6 +398,38 @@ def _stage_counts(requests: list[dict[str, Any]]) -> dict[str, int]:
         stage = str(request["extra_info"]["reward_stage"])
         counts[stage] = counts.get(stage, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _filter_rows_by_stage(rows: list[dict[str, Any]], stages: tuple[str, ...]) -> list[dict[str, Any]]:
+    if not stages:
+        return rows
+    stage_set = set(stages)
+    return [row for row in rows if _action_type(row) in stage_set]
+
+
+def _action_type(row: dict[str, Any]) -> str:
+    action_type = str(row.get("action_type", "")).strip().lower() or "answer"
+    return action_type if action_type in {"search", "answer"} else "answer"
+
+
+def _search_diversity_prompt(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
+    instruction = (
+        "Search-probe mode: output exactly one <search>...</search> action. "
+        "Do not output <answer>. Use a concise evidence-seeking query with useful "
+        "entities, relation words, or constraints from the question. Avoid copying "
+        "a previous obvious query verbatim when another plausible retrieval query is possible."
+    )
+    copied = [
+        {"role": str(message.get("role", "")), "content": str(message.get("content", ""))}
+        for message in messages
+    ]
+    if copied and copied[0]["role"] == "system":
+        copied[0] = {
+            **copied[0],
+            "content": copied[0]["content"].rstrip() + "\n\n" + instruction,
+        }
+        return copied
+    return [{"role": "system", "content": instruction}, *copied]
 
 
 def _ensure_approved_path(path: Path) -> None:

@@ -150,6 +150,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     reward_probe.add_argument("--max-new-tokens", type=int, default=64)
     reward_probe.add_argument("--search-reward-top-k", type=int, default=8)
     reward_probe.add_argument("--answer-token-f1-threshold", type=float, default=None)
+    reward_probe.add_argument("--stage", action="append", default=[])
+    reward_probe.add_argument("--search-diversity-prompt", action="store_true")
     reward_probe.add_argument("--backend", choices=["vllm"], default="vllm")
     reward_probe.add_argument("--batch-size", type=int, default=64)
     reward_probe.add_argument("--temperature", type=float, default=1.2)
@@ -393,6 +395,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_new_tokens=args.max_new_tokens,
             search_reward_top_k=args.search_reward_top_k,
             answer_token_f1_threshold=args.answer_token_f1_threshold,
+            stages=tuple(args.stage) if args.stage else (),
+            search_diversity_prompt=args.search_diversity_prompt,
             backend=args.backend,
             batch_size=args.batch_size,
             temperature=args.temperature,

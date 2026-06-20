@@ -1056,6 +1056,9 @@ def test_probe_reward_variance_cli_dry_run_writes_requests(tmp_path):
                 "1",
                 "--samples-per-prompt",
                 "2",
+                "--stage",
+                "search",
+                "--search-diversity-prompt",
                 "--dry-run",
             ]
         )
@@ -1064,6 +1067,8 @@ def test_probe_reward_variance_cli_dry_run_writes_requests(tmp_path):
 
     summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
     assert summary["dry_run"] is True
+    assert summary["stages"] == ["search"]
+    assert summary["search_diversity_prompt"] is True
     assert summary["expected_reward_rows"] == 2
     assert (out_dir / "probe_requests.jsonl").exists()
 
