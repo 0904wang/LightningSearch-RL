@@ -62,3 +62,29 @@ def test_phase6e_grpo_warmstart_launcher_merges_gdpo_checkpoint_then_trains():
     assert "PYTHONNOUSERSITE=1 python -m lightningsearch_rl.cli train" in script
     assert "/data/wzl/LightningSearch-RL/results/phase6e-grpo-warmstart-from-phase6d-gdpo" in script
     assert "/data/wzl/LightningSearch-RL/checkpoints/phase6e-grpo-warmstart-from-phase6d-gdpo" in script
+
+
+def test_phase6e_eval_launcher_compares_sft_gdpo_and_grpo_warmstart():
+    script = Path("scripts/remote/phase6e_grpo_warmstart_hard50_eval.sh").read_text(
+        encoding="utf-8"
+    )
+
+    conda_activate_index = script.index("conda activate \"$ENV\"")
+    before_activate = script[:conda_activate_index]
+
+    assert "set -u" not in before_activate
+    assert "set -euo pipefail" not in before_activate
+    assert script.index("set -u") > conda_activate_index
+    assert "/data/wzl/LightningSearch-RL/results/phase6e-grpo-warmstart-hard50-eval" in script
+    assert "/data/wzl/LightningSearch-RL/logs/phase6e-grpo-warmstart-hard50-eval.log" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase6d-gdpo-warmup-from-phase5y/hf_merged_global_step_28" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase6e-grpo-warmstart-from-phase6d-gdpo/global_step_28/actor" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase6e-grpo-warmstart-from-phase6d-gdpo/hf_merged_global_step_28" in script
+    assert "PYTHONNOUSERSITE=1 python -m verl.model_merger merge" in script
+    assert script.count("PYTHONNOUSERSITE=1 python -m lightningsearch_rl.cli inspect-env-rollout") == 1
+    assert 'run_eval "$SFT_MODEL" "$SFT_OUT" "sft baseline"' in script
+    assert 'run_eval "$GDPO_MERGED" "$GDPO_OUT" "phase6d gdpo warmup"' in script
+    assert 'run_eval "$GRPO_MERGED" "$GRPO_OUT" "phase6e grpo warmstart"' in script
+    assert "phase6e_minus_sft" in script
+    assert "phase6e_minus_phase6d" in script
+    assert "comparison_summary.json" in script
