@@ -1,0 +1,90 @@
+{
+  "syn-009012": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5R answer diagnostics: question asks for an institute but the gold answer is a location."
+    ]
+  },
+  "syn-009019": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5R answer diagnostics: question asks for a journal but the gold answer is a year."
+    ]
+  },
+  "syn-009432": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Inherited Phase 5Q quality manifest row; low reward answer caused by question and gold-answer type mismatch."
+    ]
+  },
+  "syn-009456": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5R answer diagnostics: final answer matches a retrieved title rather than the declared gold institution."
+    ]
+  },
+  "syn-009536": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Inherited Phase 5Q quality manifest row; low reward answer caused by question and gold-answer type mismatch."
+    ]
+  },
+  "syn-009857": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer 'Global Science Foundation' receives no answer reward against gold 'Global Science Forum'."
+    ]
+  },
+  "syn-009947": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer 'Lumen Prize' receives no answer reward against gold 'Niels Bohr Medal'."
+    ]
+  },
+  "syn-010022": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer 'Oakville' receives no answer reward against gold 'Riverside'."
+    ]
+  },
+  "syn-010102": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer '2018' receives no answer reward against gold '1998'."
+    ]
+  },
+  "syn-010326": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer 'Greenwood Historical Society' receives no answer reward against gold 'Greenfield University'."
+    ]
+  },
+  "syn-010401": {
+    "flags": [
+      "answer_none_low_reward"
+    ],
+    "notes": [
+      "Phase 5R filtered reward record: final answer 'Vance Archive' receives no answer reward against gold 'Ashford University'."
+    ]
+  }
+}

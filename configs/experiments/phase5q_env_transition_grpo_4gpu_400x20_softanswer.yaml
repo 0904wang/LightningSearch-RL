@@ -1,0 +1,33 @@
+experiment_name: phase5q-env-transition-grpo-4gpu-400x20-softanswer
+project_name: lightningsearch-rl
+transitions_path: /data/wzl/LightningSearch-RL/results/phase5q-env-transitions-soft-answer-from-5q200/transitions.jsonl
+train_samples: 320
+val_samples: 80
+seed: 20260617
+model_path: /data/wzl/LightningSearch-RL/checkpoints/phase5d-sft-turns-docidfix-4gpu/hf_merged_global_step_40
+max_prompt_length: 384
+max_response_length: 64
+rollout_n: 1
+rollout_max_model_len: 512
+rollout_gpu_memory_utilization: 0.25
+rollout_max_num_batched_tokens: 768
+rollout_max_num_seqs: 4
+rollout_enforce_eager: true
+rollout_enable_chunked_prefill: false
+rollout_enable_prefix_caching: false
+rollout_agent_num_workers: 4
+rollout_update_weights_bucket_megabytes: 512
+train_batch_size: 4
+ppo_mini_batch_size: 4
+ppo_micro_batch_size_per_gpu: 1
+actor_model_dtype: bfloat16
+actor_param_offload: true
+actor_optimizer_offload: true
+n_gpus_per_node: 4
+total_training_steps: 20
+save_freq: -1
+test_freq: -1
+reward_dump_path: /data/wzl/LightningSearch-RL/results/phase5q-env-transition-grpo-4gpu-400x20-softanswer/reward_dump.jsonl
+reward_dump_max_chars: 1024
+logger:
+  - console

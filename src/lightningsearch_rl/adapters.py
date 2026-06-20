@@ -17,16 +17,17 @@ def convert_hotpot_file(
     passages: list[Passage] = []
     examples: list[dict] = []
     for row in rows:
-        row_passages = _passages_from_context("hotpot", row["context"])
+        row_id = _row_id(row)
+        row_passages = _passages_from_context("hotpot", row_id, row["context"])
         passages.extend(row_passages)
         corpus_doc_ids = [passage.doc_id for passage in row_passages]
         gold_doc_ids = [
-            _doc_id("hotpot", title, sentence_index)
+            _doc_id("hotpot", row_id, title, sentence_index)
             for title, sentence_index in _supporting_fact_pairs(row)
         ]
         examples.append(
             {
-                "id": _row_id(row),
+                "id": row_id,
                 "question": row["question"],
                 "answers": _answers(row),
                 "gold_doc_ids": gold_doc_ids,
@@ -47,16 +48,17 @@ def convert_2wiki_file(
     passages: list[Passage] = []
     examples: list[dict] = []
     for row in rows:
-        row_passages = _passages_from_context("2wiki", row["context"])
+        row_id = _row_id(row)
+        row_passages = _passages_from_context("2wiki", row_id, row["context"])
         passages.extend(row_passages)
         corpus_doc_ids = [passage.doc_id for passage in row_passages]
         gold_doc_ids = [
-            _doc_id("2wiki", title, sentence_index)
+            _doc_id("2wiki", row_id, title, sentence_index)
             for title, sentence_index in _supporting_fact_pairs(row)
         ]
         examples.append(
             {
-                "id": _row_id(row),
+                "id": row_id,
                 "question": row["question"],
                 "answers": _answers(row),
                 "gold_doc_ids": gold_doc_ids,
@@ -111,15 +113,15 @@ def _supporting_fact_pairs(row: dict) -> list[tuple[str, int]]:
     return pairs
 
 
-def _passages_from_context(prefix: str, context) -> list[Passage]:
+def _passages_from_context(prefix: str, row_id: str, context) -> list[Passage]:
     if isinstance(context, dict):
-        return _passages_from_mapping_context(prefix, context)
+        return _passages_from_mapping_context(prefix, row_id, context)
     if isinstance(context, list):
-        return _passages_from_list_context(prefix, context)
+        return _passages_from_list_context(prefix, row_id, context)
     raise ValueError("context must be a mapping or list")
 
 
-def _passages_from_list_context(prefix: str, context: list) -> list[Passage]:
+def _passages_from_list_context(prefix: str, row_id: str, context: list) -> list[Passage]:
     passages: list[Passage] = []
     for item in context:
         if isinstance(item, dict):
@@ -132,14 +134,15 @@ def _passages_from_list_context(prefix: str, context: list) -> list[Passage]:
         for sentence_index, sentence in enumerate(sentences):
             passages.append(
                 Passage(
-                    doc_id=_doc_id(prefix, title, sentence_index),
+                    doc_id=_doc_id(prefix, row_id, title, sentence_index),
                     title=title,
                     text=sentence,
                 )
             )
     return passages
 
-def _passages_from_mapping_context(prefix: str, context: dict[str, list[str]]) -> list[Passage]:
+
+def _passages_from_mapping_context(prefix: str, row_id: str, context: dict[str, list[str]]) -> list[Passage]:
     passages: list[Passage] = []
     for title, sentences in context.items():
         if isinstance(sentences, str):
@@ -147,7 +150,7 @@ def _passages_from_mapping_context(prefix: str, context: dict[str, list[str]]) -
         for sentence_index, sentence in enumerate(sentences):
             passages.append(
                 Passage(
-                    doc_id=_doc_id(prefix, title, sentence_index),
+                    doc_id=_doc_id(prefix, row_id, title, sentence_index),
                     title=title,
                     text=sentence,
                 )
@@ -155,8 +158,8 @@ def _passages_from_mapping_context(prefix: str, context: dict[str, list[str]]) -
     return passages
 
 
-def _doc_id(prefix: str, title: str, sentence_index: int) -> str:
-    return f"{prefix}::{title}::{sentence_index}"
+def _doc_id(prefix: str, row_id: str, title: str, sentence_index: int) -> str:
+    return f"{prefix}::{row_id}::{title}::{sentence_index}"
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:

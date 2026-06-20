@@ -1,0 +1,26 @@
+experiment_name: phase5d-sft-turns-4gpu
+project_name: lightningsearch-rl
+sft_path: /data/wzl/LightningSearch-RL/results/phase4g-deepseek-titlefix-500/sft-turns-gold/sft_turns.jsonl
+train_samples: 480
+val_samples: 20
+seed: 17
+model_path: /data/wzl/LightningSearch-RL/checkpoints/phase5c-sft-warmup-tiny-4gpu/hf_merged_global_step_20
+max_length: 1024
+train_batch_size: 4
+micro_batch_size_per_gpu: 1
+max_token_len_per_gpu: 2048
+learning_rate: 1.0e-5
+cuda_visible_devices: "1,2,5,7"
+param_offload: true
+optimizer_offload: true
+model_dtype: bfloat16
+engine_dtype: bfloat16
+trust_remote_code: false
+n_gpus_per_node: 4
+total_training_steps: 40
+total_epochs: 1
+save_freq: 40
+test_freq: -1
+num_workers: 0
+logger:
+  - console

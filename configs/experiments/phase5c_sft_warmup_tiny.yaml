@@ -1,0 +1,26 @@
+experiment_name: phase5c-sft-warmup-tiny
+project_name: lightningsearch-rl
+sft_path: /data/wzl/LightningSearch-RL/results/phase4g-deepseek-titlefix-500/sft-warmup-gold/sft_warmup.jsonl
+train_samples: 480
+val_samples: 20
+seed: 13
+model_path: /data/wzl/LightningSearch-RL/models/Qwen/Qwen3-4B
+max_length: 1024
+train_batch_size: 1
+micro_batch_size_per_gpu: 1
+max_token_len_per_gpu: 2048
+learning_rate: 1.0e-5
+cuda_visible_devices: "7"
+param_offload: true
+optimizer_offload: true
+model_dtype: bfloat16
+engine_dtype: bfloat16
+trust_remote_code: false
+n_gpus_per_node: 1
+total_training_steps: 20
+total_epochs: 1
+save_freq: 20
+test_freq: -1
+num_workers: 0
+logger:
+  - console

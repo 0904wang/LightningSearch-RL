@@ -29,4 +29,4 @@ def test_retrieval_episode_uses_injected_shared_retriever(tmp_path):
     trace = run_retrieval_episode(example, retriever, top_k=2)
 
     assert trace.final_answer == "Example City"
-    assert trace.steps[0].observation[0].doc_id == "hotpot::Alice Smith::0"
+    assert trace.steps[0].observation[0].doc_id == "hotpot::hp_mixed_1::Alice Smith::0"

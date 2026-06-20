@@ -1,0 +1,42 @@
+{
+  "syn-009012": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5Q batch diagnostics: low reward answer row; question and gold-answer type appear mismatched."
+    ]
+  },
+  "syn-009019": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5Q batch diagnostics: low reward answer row; question and gold-answer type appear mismatched."
+    ]
+  },
+  "syn-009432": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5Q batch diagnostics and reward dump: low reward answer row; question and gold-answer type appear mismatched."
+    ]
+  },
+  "syn-009456": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5Q batch diagnostics: low reward answer row; question and gold-answer type appear mismatched."
+    ]
+  },
+  "syn-009536": {
+    "flags": [
+      "qa_type_mismatch"
+    ],
+    "notes": [
+      "Phase 5Q reward dump: low reward answer row; question and gold-answer type appear mismatched."
+    ]
+  }
+}

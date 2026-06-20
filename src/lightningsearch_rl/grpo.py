@@ -69,7 +69,7 @@ def _build_rollout_row(example: QAExample, trace: EpisodeTrace) -> dict[str, Any
         "response": format_assistant_trace(trace),
         "reward": trace.reward,
         "metadata": {
-            "answer": trace.final_answer,
+            "answer": _gold_answer(example),
             "search_count": trace.metadata["search_count"],
             "gold_doc_ids": example.gold_doc_ids,
             "retrieved_doc_ids": _retrieved_doc_ids(trace),
@@ -92,6 +92,13 @@ def _retrieved_doc_ids(trace: EpisodeTrace) -> list[str]:
         if step.action_type == "search" and step.observation
         for passage in step.observation
     ]
+
+
+def _gold_answer(example: QAExample) -> str:
+    for answer in example.answers:
+        if answer.strip():
+            return answer
+    return ""
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
