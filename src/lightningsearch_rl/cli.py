@@ -17,6 +17,7 @@ from lightningsearch_rl.env_transitions import export_env_rollout_transitions
 from lightningsearch_rl.grpo import export_grpo
 from lightningsearch_rl.index_store import load_lexical_index, save_lexical_index
 from lightningsearch_rl.policy_movement import diagnose_policy_movement
+from lightningsearch_rl.preference_pairs import build_preference_pairs
 from lightningsearch_rl.reward_probe import run_reward_probe
 from lightningsearch_rl.rewards import compute_reward
 from lightningsearch_rl.retrieval_eval import evaluate_retrieval
@@ -125,6 +126,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     filter_variance.add_argument("--min-score-range", type=float, default=1e-9)
     filter_variance.add_argument("--min-samples", type=int, default=2)
     filter_variance.add_argument("--max-source-count", type=int, default=None)
+    preference_pairs = subparsers.add_parser("build-preference-pairs")
+    preference_pairs.add_argument("--probe-requests", required=True)
+    preference_pairs.add_argument("--generations", required=True)
+    preference_pairs.add_argument("--reward-dump", required=True)
+    preference_pairs.add_argument("--out-dir", required=True)
+    preference_pairs.add_argument("--stage", action="append", default=[])
+    preference_pairs.add_argument("--min-score-gap", type=float, default=0.25)
+    preference_pairs.add_argument("--min-samples", type=int, default=2)
+    preference_pairs.add_argument("--max-pairs-per-group", type=int, default=1)
+    preference_pairs.add_argument("--max-search-pairs", type=int, default=None)
+    preference_pairs.add_argument("--max-answer-pairs", type=int, default=None)
+    preference_pairs.add_argument("--val-fraction", type=float, default=0.05)
+    preference_pairs.add_argument("--seed", type=int, default=0)
     reward_probe = subparsers.add_parser("probe-reward-variance")
     reward_probe.add_argument("--transitions", required=True)
     reward_probe.add_argument("--model", required=True)
@@ -348,6 +362,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             min_score_range=args.min_score_range,
             min_samples=args.min_samples,
             max_source_count=args.max_source_count,
+        )
+        return 0
+    if args.command == "build-preference-pairs":
+        build_preference_pairs(
+            probe_requests_path=Path(args.probe_requests),
+            generations_path=Path(args.generations),
+            reward_dump_path=Path(args.reward_dump),
+            out_dir=Path(args.out_dir),
+            stages=tuple(args.stage) if args.stage else (),
+            min_score_gap=args.min_score_gap,
+            min_samples=args.min_samples,
+            max_pairs_per_group=args.max_pairs_per_group,
+            max_search_pairs=args.max_search_pairs,
+            max_answer_pairs=args.max_answer_pairs,
+            val_fraction=args.val_fraction,
+            seed=args.seed,
         )
         return 0
     if args.command == "probe-reward-variance":

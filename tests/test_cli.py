@@ -903,6 +903,120 @@ def test_filter_transitions_by_reward_variance_cli_writes_filtered_artifacts(tmp
     assert len((out_dir / "transitions.jsonl").read_text(encoding="utf-8").splitlines()) == 2
 
 
+def test_build_preference_pairs_cli_writes_pair_artifacts(tmp_path):
+    requests = tmp_path / "probe_requests.jsonl"
+    generations = tmp_path / "generations.jsonl"
+    reward_dump = tmp_path / "reward_dump.jsonl"
+    out_dir = tmp_path / "pairs"
+    requests.write_text(
+        json.dumps(
+            {
+                "request_index": 0,
+                "prompt": [{"role": "user", "content": "Question?"}],
+                "ground_truth": "",
+                "extra_info": {
+                    "id": "syn-a:0:search",
+                    "source_id": "syn-a",
+                    "index": 0,
+                    "reward_stage": "search",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    generations.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "request_index": 0,
+                        "sample_index": 0,
+                        "id": "syn-a:0:search",
+                        "source_id": "syn-a",
+                        "reward_stage": "search",
+                        "solution": "<search>strong query</search>",
+                        "score": 0.97,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "request_index": 0,
+                        "sample_index": 1,
+                        "id": "syn-a:0:search",
+                        "source_id": "syn-a",
+                        "reward_stage": "search",
+                        "solution": "<search>bad query</search>",
+                        "score": 0.07,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    reward_dump.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "reward_stage": "search",
+                        "score": 0.97,
+                        "extra_info": {
+                            "id": "syn-a:0:search",
+                            "source_id": "syn-a",
+                            "index": 0,
+                            "probe_sample_index": 0,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "reward_stage": "search",
+                        "score": 0.07,
+                        "extra_info": {
+                            "id": "syn-a:0:search",
+                            "source_id": "syn-a",
+                            "index": 0,
+                            "probe_sample_index": 1,
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "build-preference-pairs",
+                "--probe-requests",
+                str(requests),
+                "--generations",
+                str(generations),
+                "--reward-dump",
+                str(reward_dump),
+                "--out-dir",
+                str(out_dir),
+                "--stage",
+                "search",
+                "--min-score-gap",
+                "0.5",
+                "--val-fraction",
+                "0",
+            ]
+        )
+        == 0
+    )
+
+    summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["pair_count"] == 1
+    assert summary["stage_pair_counts"] == {"search": 1}
+    assert len((out_dir / "pairs.jsonl").read_text(encoding="utf-8").splitlines()) == 1
+
+
 def test_probe_reward_variance_cli_dry_run_writes_requests(tmp_path):
     transitions = tmp_path / "transitions.jsonl"
     out_dir = tmp_path / "reward-probe"
