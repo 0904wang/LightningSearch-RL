@@ -1002,6 +1002,8 @@ def test_build_preference_pairs_cli_writes_pair_artifacts(tmp_path):
                 str(out_dir),
                 "--stage",
                 "search",
+                "--pair-category",
+                "search_vs_search",
                 "--min-score-gap",
                 "0.5",
                 "--val-fraction",
@@ -1012,7 +1014,9 @@ def test_build_preference_pairs_cli_writes_pair_artifacts(tmp_path):
     )
 
     summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["pair_categories"] == ["search_vs_search"]
     assert summary["pair_count"] == 1
+    assert summary["pair_category_counts"] == {"search_vs_search": 1}
     assert summary["stage_pair_counts"] == {"search": 1}
     assert len((out_dir / "pairs.jsonl").read_text(encoding="utf-8").splitlines()) == 1
 

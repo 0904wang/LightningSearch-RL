@@ -22,6 +22,7 @@ def build_preference_pairs(
     reward_dump_path: Path,
     out_dir: Path,
     stages: Sequence[str] = DEFAULT_STAGES,
+    pair_categories: Sequence[str] = (),
     min_score_gap: float = 0.25,
     min_samples: int = 2,
     max_pairs_per_group: int = 1,
@@ -42,6 +43,8 @@ def build_preference_pairs(
 
     selected_stages = tuple(stages) if stages else DEFAULT_STAGES
     stage_set = {str(stage).strip().lower() for stage in selected_stages}
+    selected_pair_categories = tuple(_normalize_pair_category(category) for category in pair_categories)
+    pair_category_set = {category for category in selected_pair_categories if category}
     requests = _load_jsonl(probe_requests_path)
     generations = _load_jsonl(generations_path)
     reward_rows = _load_jsonl(reward_dump_path)
@@ -85,6 +88,12 @@ def build_preference_pairs(
             )
         )
 
+    unfiltered_candidate_pairs = list(candidate_pairs)
+    if pair_category_set:
+        candidate_pairs = [
+            pair for pair in candidate_pairs if str(pair.get("pair_category") or "") in pair_category_set
+        ]
+
     selected_pairs = _apply_stage_caps(
         candidate_pairs,
         max_search_pairs=max_search_pairs,
@@ -102,6 +111,7 @@ def build_preference_pairs(
         "reward_dump_path": str(reward_dump_path),
         "out_dir": str(out_dir),
         "stages": list(selected_stages),
+        "pair_categories": list(selected_pair_categories),
         "min_score_gap": min_score_gap,
         "min_samples": min_samples,
         "max_pairs_per_group": max_pairs_per_group,
@@ -112,13 +122,16 @@ def build_preference_pairs(
         "request_count": len(requests),
         "generation_count": len(generations),
         "reward_dump_count": len(reward_rows),
+        "unfiltered_candidate_pair_count": len(unfiltered_candidate_pairs),
         "candidate_pair_count": len(candidate_pairs),
         "pair_count": len(selected_pairs),
         "train_count": len(train_pairs),
         "val_count": len(val_pairs),
         "skipped_group_count": skipped_groups,
+        "unfiltered_pair_category_counts": _pair_category_counts(unfiltered_candidate_pairs),
         "stage_candidate_pair_counts": _stage_counts(candidate_pairs),
         "stage_pair_counts": _stage_counts(selected_pairs),
+        "pair_category_counts": _pair_category_counts(selected_pairs),
         "artifacts": {
             "pairs": str(out_dir / "pairs.jsonl"),
             "train": str(out_dir / "train.jsonl"),
@@ -163,6 +176,7 @@ def _candidate_from_generation(
 ) -> dict[str, Any]:
     reward_payload = _reward_payload(generation, reward_row)
     request_extra = _dict(request.get("extra_info"))
+    action = parse_agent_action(str(generation.get("solution") or ""))
     return {
         "request_index": _int(generation.get("request_index")),
         "sample_index": _int(generation.get("sample_index")),
@@ -173,6 +187,9 @@ def _candidate_from_generation(
         "score": round(_float(reward_payload.get("score", generation.get("score"))), 6),
         "reward": reward_payload,
         "action_key": action_key,
+        "action_type": action.type if action.valid else "invalid",
+        "action_valid": action.valid,
+        "action_reason": action.reason,
     }
 
 
@@ -211,6 +228,11 @@ def _pairs_for_group(
                     "chosen_score": chosen["score"],
                     "rejected_score": rejected["score"],
                     "score_gap": score_gap,
+                    "pair_category": _pair_category(chosen, rejected),
+                    "chosen_action_type": chosen["action_type"],
+                    "rejected_action_type": rejected["action_type"],
+                    "chosen_action_valid": chosen["action_valid"],
+                    "rejected_action_valid": rejected["action_valid"],
                     "chosen_sample_index": chosen["sample_index"],
                     "rejected_sample_index": rejected["sample_index"],
                     "chosen_reward": chosen["reward"],
@@ -340,6 +362,22 @@ def _stage_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
         stage = str(row.get("reward_stage") or "unknown")
         counts[stage] = counts.get(stage, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _pair_category(chosen: dict[str, Any], rejected: dict[str, Any]) -> str:
+    return f"{chosen['action_type']}_vs_{rejected['action_type']}"
+
+
+def _pair_category_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        category = str(row.get("pair_category") or "unknown")
+        counts[category] = counts.get(category, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _normalize_pair_category(category: Any) -> str:
+    return str(category).strip().lower().replace("-", "_")
 
 
 def _ensure_approved_path(path: Path) -> None:

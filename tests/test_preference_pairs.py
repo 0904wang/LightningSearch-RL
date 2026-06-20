@@ -119,6 +119,60 @@ def test_build_preference_pairs_caps_answer_pairs_while_keeping_search_pairs(tmp
     assert len(_read_jsonl(out_dir / "val.jsonl")) == 1
 
 
+def test_build_preference_pairs_can_keep_only_search_vs_search_pairs(tmp_path):
+    requests = tmp_path / "probe_requests.jsonl"
+    generations = tmp_path / "generations.jsonl"
+    reward_dump = tmp_path / "reward_dump.jsonl"
+    out_dir = tmp_path / "pairs"
+    _write_jsonl(
+        requests,
+        [_request(0, "syn-a", "syn-a:0:search", "search")],
+    )
+    _write_jsonl(
+        generations,
+        [
+            _generation(0, 0, "syn-a", "syn-a:0:search", "search", "<search>precise gold query</search>", 0.97),
+            _generation(0, 1, "syn-a", "syn-a:0:search", "search", "<search>generic archive query</search>", 0.37),
+            _generation(0, 2, "syn-a", "syn-a:0:search", "search", "<answer>wrong stage</answer>", -0.03),
+        ],
+    )
+    _write_jsonl(
+        reward_dump,
+        [
+            _reward_row(0, 0, "syn-a", "syn-a:0:search", "search", 0.97),
+            _reward_row(0, 1, "syn-a", "syn-a:0:search", "search", 0.37),
+            _reward_row(0, 2, "syn-a", "syn-a:0:search", "search", -0.03),
+        ],
+    )
+
+    summary = build_preference_pairs(
+        probe_requests_path=requests,
+        generations_path=generations,
+        reward_dump_path=reward_dump,
+        out_dir=out_dir,
+        stages=("search",),
+        pair_categories=("search_vs_search",),
+        min_score_gap=0.5,
+        max_pairs_per_group=4,
+        val_fraction=0.0,
+    )
+
+    pairs = _read_jsonl(out_dir / "pairs.jsonl")
+    assert summary["unfiltered_candidate_pair_count"] == 2
+    assert summary["unfiltered_pair_category_counts"] == {
+        "search_vs_answer": 1,
+        "search_vs_search": 1,
+    }
+    assert summary["candidate_pair_count"] == 1
+    assert summary["pair_category_counts"] == {"search_vs_search": 1}
+    assert len(pairs) == 1
+    assert pairs[0]["pair_category"] == "search_vs_search"
+    assert pairs[0]["chosen_action_type"] == "search"
+    assert pairs[0]["rejected_action_type"] == "search"
+    assert pairs[0]["chosen"] == "<search>precise gold query</search>"
+    assert pairs[0]["rejected"] == "<search>generic archive query</search>"
+
+
 def _request(request_index, source_id, transition_id, stage):
     return {
         "request_index": request_index,

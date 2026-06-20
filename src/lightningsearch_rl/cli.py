@@ -132,6 +132,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     preference_pairs.add_argument("--reward-dump", required=True)
     preference_pairs.add_argument("--out-dir", required=True)
     preference_pairs.add_argument("--stage", action="append", default=[])
+    preference_pairs.add_argument("--pair-category", action="append", default=[])
     preference_pairs.add_argument("--min-score-gap", type=float, default=0.25)
     preference_pairs.add_argument("--min-samples", type=int, default=2)
     preference_pairs.add_argument("--max-pairs-per-group", type=int, default=1)
@@ -371,6 +372,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             reward_dump_path=Path(args.reward_dump),
             out_dir=Path(args.out_dir),
             stages=tuple(args.stage) if args.stage else (),
+            pair_categories=tuple(args.pair_category) if args.pair_category else (),
             min_score_gap=args.min_score_gap,
             min_samples=args.min_samples,
             max_pairs_per_group=args.max_pairs_per_group,
