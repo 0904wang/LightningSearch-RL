@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 cd /data/wzl/LightningSearch-RL/repo
 source /home/user/anaconda3/etc/profile.d/conda.sh
 conda activate /data/wzl/LightningSearch-RL/.conda-envs/lightningsearch-rl
 export PYTHONNOUSERSITE=1
+set -u
 
 INPUT_DIR=/data/wzl/LightningSearch-RL/results/phase5y-reward-probe-rankreward-978x6
 OUT_DIR=/data/wzl/LightningSearch-RL/results/phase6a-preference-pairs-rankreward-from-phase5y
