@@ -231,6 +231,34 @@ def test_prepare_verl_smoke_writes_dry_run_artifacts(tmp_path):
     assert "reward.custom_reward_function.name=compute_score" in command
 
 
+def test_prepare_verl_smoke_can_build_gdpo_command(tmp_path):
+    rollouts = tmp_path / "rollouts.jsonl"
+    _write_rollouts(rollouts, count=3)
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        _config_text(rollouts)
+        + "\nadv_estimator: gdpo\n"
+        + "gdpo_reward_keys:\n"
+        + "  - search_reward\n"
+        + "  - format_reward\n"
+        + "reward_manager_name: gdpo\n",
+        encoding="utf-8",
+    )
+
+    prepare_verl_smoke(
+        config,
+        tmp_path / "results",
+        tmp_path / "checkpoints",
+        dry_run=True,
+        execute=False,
+    )
+
+    command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
+    assert "algorithm.adv_estimator=gdpo" in command
+    assert "'+algorithm.gdpo_reward_keys=[\"search_reward\", \"format_reward\"]'" in command
+    assert "reward.reward_manager.name=gdpo" in command
+
+
 def test_prepare_verl_smoke_can_prepend_agent_system_prompt(tmp_path):
     rollouts = tmp_path / "rollouts.jsonl"
     _write_rollouts(rollouts, count=3)

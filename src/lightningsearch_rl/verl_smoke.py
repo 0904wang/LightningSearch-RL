@@ -433,7 +433,7 @@ def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Pa
         f"actor_rollout_ref.actor.fsdp_config.model_dtype={config.get('actor_model_dtype', 'bfloat16')}",
         f"actor_rollout_ref.actor.fsdp_config.param_offload={_bool_override(config.get('actor_param_offload', True))}",
         f"actor_rollout_ref.actor.fsdp_config.optimizer_offload={_bool_override(config.get('actor_optimizer_offload', True))}",
-        "algorithm.adv_estimator=grpo",
+        f"algorithm.adv_estimator={config.get('adv_estimator', 'grpo')}",
         "reward.custom_reward_function.path=src/lightningsearch_rl/verl_reward.py",
         "reward.custom_reward_function.name=compute_score",
         f"trainer.project_name={config['project_name']}",
@@ -447,6 +447,10 @@ def _build_launch_command(config: dict[str, Any], train_file: Path, val_file: Pa
         f"trainer.logger={logger}",
         f"trainer.default_local_dir={checkpoint_dir}",
     ]
+    if config.get("gdpo_reward_keys"):
+        command.append(f"+algorithm.gdpo_reward_keys={json.dumps(config['gdpo_reward_keys'])}")
+    if config.get("reward_manager_name"):
+        command.append(f"reward.reward_manager.name={config['reward_manager_name']}")
     _append_optional_rollout_override(command, config, "rollout_temperature", "temperature")
     _append_optional_rollout_override(command, config, "rollout_top_p", "top_p")
     _append_optional_rollout_override(command, config, "rollout_top_k", "top_k")
