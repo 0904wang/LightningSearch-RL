@@ -1017,6 +1017,50 @@ def test_phase5s_hard50_soft_answer_grpo_200step_rollout4_config_uses_grpo_group
     assert "data.train_batch_size=4" in command
 
 
+def test_phase6e_grpo_warmstart_config_uses_gdpo_merged_checkpoint(tmp_path):
+    source_config = Path("configs/experiments/phase6e_grpo_warmstart_from_phase6d_gdpo.yaml")
+    config_text = source_config.read_text(encoding="utf-8")
+    transitions = tmp_path / "transitions.jsonl"
+    _write_env_transitions(transitions, count=126)
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        config_text.replace(
+            "/data/wzl/LightningSearch-RL/results/phase5y-env-transitions-variance-rankreward-100src/transitions.jsonl",
+            str(transitions),
+        ),
+        encoding="utf-8",
+    )
+
+    summary = prepare_verl_smoke(
+        config,
+        tmp_path / "results",
+        tmp_path / "checkpoints",
+        dry_run=True,
+        execute=False,
+    )
+
+    assert summary["experiment_name"] == "phase6e-grpo-warmstart-from-phase6d-gdpo"
+    assert summary["source_type"] == "transitions"
+    assert summary["train_rows"] == 112
+    assert summary["val_rows"] == 14
+    command = (tmp_path / "results" / "launch_command.txt").read_text(encoding="utf-8")
+    assert (
+        "actor_rollout_ref.model.path=/data/wzl/LightningSearch-RL/checkpoints/"
+        "phase6d-gdpo-warmup-from-phase5y/hf_merged_global_step_28"
+    ) in command
+    assert "algorithm.adv_estimator=grpo" in command
+    assert "algorithm.adv_estimator=gdpo" not in command
+    assert "reward.reward_manager.name=gdpo" not in command
+    assert "'+algorithm.gdpo_reward_keys=" not in command
+    assert (
+        "LIGHTNINGSEARCH_REWARD_DUMP_PATH="
+        "/data/wzl/LightningSearch-RL/results/phase6e-grpo-warmstart-from-phase6d-gdpo/reward_dump.jsonl"
+    ) in command
+    assert "actor_rollout_ref.rollout.n=4" in command
+    assert "trainer.total_training_steps=28" in command
+    assert "trainer.save_freq=28" in command
+
+
 def test_phase5t_hard50_rollout4_diverse_smoke_config_enables_sampling_and_reward_shaping(tmp_path):
     source_config = Path(
         "configs/experiments/phase5t_hard50_env_transition_grpo_4gpu_978x50_rollout4_diverse_softanswer.yaml"
