@@ -118,3 +118,29 @@ def test_phase6e_stochastic_eval_launcher_samples_sft_gdpo_and_grpo_warmstart():
     assert "--do-sample" in script
     assert "phase6e_minus_phase6d" in script
     assert "comparison_summary.json" in script
+
+
+def test_phase6f_policy_movement_launcher_compares_sft_gdpo_and_grpo_warmstart():
+    script = Path("scripts/remote/phase6f_policy_movement_diag.sh").read_text(
+        encoding="utf-8"
+    )
+
+    conda_activate_index = script.index("conda activate \"$ENV\"")
+    before_activate = script[:conda_activate_index]
+
+    assert "set -u" not in before_activate
+    assert "set -euo pipefail" not in before_activate
+    assert script.index("set -u") > conda_activate_index
+    assert "/data/wzl/LightningSearch-RL/results/phase6f-policy-movement-diag" in script
+    assert "/data/wzl/LightningSearch-RL/logs/phase6f-policy-movement-diag.log" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase5d-sft-turns-docidfix-4gpu/hf_merged_global_step_40" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase6d-gdpo-warmup-from-phase5y/hf_merged_global_step_28" in script
+    assert "/data/wzl/LightningSearch-RL/checkpoints/phase6e-grpo-warmstart-from-phase6d-gdpo/hf_merged_global_step_28" in script
+    assert "PYTHONNOUSERSITE=1 python -m lightningsearch_rl.cli diagnose-policy-movement" in script
+    assert 'run_diag "$SFT_MODEL" "$GDPO_MODEL" "$SFT_VS_6D_OUT" "sft vs phase6d gdpo"' in script
+    assert 'run_diag "$SFT_MODEL" "$GRPO_MODEL" "$SFT_VS_6E_OUT" "sft vs phase6e grpo"' in script
+    assert 'run_diag "$GDPO_MODEL" "$GRPO_MODEL" "$GDPO_VS_GRPO_OUT" "phase6d gdpo vs phase6e grpo"' in script
+    assert "OFFSET=400" in script
+    assert "LIMIT=20" in script
+    assert "TOP_K_TENSORS=30" in script
+    assert "comparison_summary.json" in script
